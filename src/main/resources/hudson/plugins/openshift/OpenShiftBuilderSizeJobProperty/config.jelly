@@ -1,0 +1,14 @@
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"
+xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson"
+xmlns:f="/lib/form">
+    <f:entry name="builderSize" title="Builder Size" field="builderSize">
+        <select name="builderSize">
+            <f:option value="small" selected="${instance.builderSize=='small'}">Small</f:option>
+            <!--<f:option value="jumbo" selected="${instance.builderSize=='jumbo'}">Jumbo</f:option>-->
+            <!--<f:option value="exlarge" selected="${instance.builderSize=='exlarge'}">Extra Large</f:option>-->
+            <f:option value="medium" selected="${instance.builderSize=='medium'}">Medium</f:option>
+            <!--<f:option value="large" selected="${instance.builderSize=='large'}">Large</f:option>-->
+            <!--<f:option value="micro" selected="${instance.builderSize=='micro'}">Micro</f:option>-->
+        </select>
+    </f:entry>
+</j:jelly>

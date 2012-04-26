@@ -1,0 +1,40 @@
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+    <f:entry title="OpenShift / Red Hat Username">
+        <f:textbox field="username"/>
+    </f:entry>
+
+    <f:entry title="OpenShift / Red Hat Password">
+        <f:password field="password"/>
+    </f:entry>
+    
+    <f:entry title="OpenShift Broker Hostname">
+        <f:textbox field="brokerHost" default="openshift.redhat.com" />
+    </f:entry>
+    
+    <f:entry title="OpenShift Broker Port">
+        <f:textbox field="brokerPort" default="" />
+    </f:entry>
+    
+    <f:entry title="Allow self signed broker SSL certificate">
+    	  <f:checkbox field="ignoreBrokerCertCheck" />
+    </f:entry>
+
+    <f:entry title="Proxy Hostname">
+        <f:textbox field="proxyHost"/>
+    </f:entry>
+    
+    <f:entry title="Proxy Port">
+        <f:textbox field="proxyPort"/>
+    </f:entry>
+    
+    <f:entry name="defaultBuilderSize" title="Default Builder Size" field="defaultBuilderSize">
+        <select name="defaultBuilderSize">
+            <f:option value="small" selected="${instance.getDefaultBuilderSize()=='small'}">Small</f:option>
+            <!--<f:option value="jumbo" selected="${instance.getDefaultBuilderSize()=='jumbo'}">Jumbo</f:option>-->
+            <!--<f:option value="exlarge" selected="${instance.getDefaultBuilderSize()=='exlarge'}">Extra Large</f:option>-->
+            <f:option value="medium" selected="${instance.getDefaultBuilderSize()=='medium'}">Medium</f:option>
+            <!--<f:option value="large" selected="${instance.getDefaultBuilderSize()=='large'}">Large</f:option>-->
+            <!--<f:option value="micro" selected="${instance.getDefaultBuilderSize()=='micro'}">Micro</f:option>-->
+        </select>
+    </f:entry>
+</j:jelly>

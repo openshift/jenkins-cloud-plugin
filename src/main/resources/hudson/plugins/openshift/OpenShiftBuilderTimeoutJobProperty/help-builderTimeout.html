@@ -1,0 +1,14 @@
+<div>
+	<p><b>Important:</b> This setting only applies if you set the job <i>Label Expression</i> to match the <i>Project name</i> of your job.</p>
+	<p>
+	Setting the job label is done automatically for you by the OpenShift client tools, but if you are manually setting
+	up a job, you need to set this.  You can set the <i>Label Expression</i> by checking <i>Restrict where this project can be run</i>
+	and then copying your <i>Project name</i> into the text field.  The label is used to lookup the job details, including 
+	the <i>Builder Timeout</i> when your slave builders are created.
+	</p>
+	
+	<p>
+		The builder timeout specifies the number of milliseconds that Jenkins will wait for DNS propagation before canceling the build. A value of -1 indicates no timeout
+	</p>
+	
+</div>

@@ -1,0 +1,14 @@
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"
+xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson"
+xmlns:f="/lib/form">
+    <f:entry name="builderType" title="Builder Type" field="builderType">
+        <select name="builderType">
+            <f:option value="diy-0.1" selected="${instance.builderType=='diy-0.1'}">diy-0.1</f:option>
+            <f:option value="jbossas-7" selected="${instance.builderType=='jbossas-7'}">jbossas-7</f:option>
+            <f:option value="php-5.3" selected="${instance.builderType=='php-5.3'}">php-5.3</f:option>
+            <f:option value="perl-5.10" selected="${instance.builderType=='perl-5.10'}">perl-5.10</f:option>
+            <f:option value="ruby-1.8" selected="${instance.builderType=='ruby-1.8'}">ruby-1.8</f:option>
+            <f:option value="python-2.6" selected="${instance.builderType=='python-2.6'}">python-2.6</f:option>
+        </select>
+    </f:entry>
+</j:jelly>

@@ -1,0 +1,23 @@
+<div>
+	<p><b>Important:</b> This setting only applies if you set the job <i>Label Expression</i> to match the <i>Project name</i> of your job.</p>
+	<p>
+	Setting the job label is done automatically for you by the OpenShift client tools, but if you are manually setting
+	up a job, you need to set this.  You can set the <i>Label Expression</i> by checking <i>Restrict where this project can be run</i>
+	and then copying your <i>Project Name</i> into the text field.  The label is used to lookup the job details, including 
+	the <i>Builder Type</i> and <i>Builder Size</i> when your slave builders are created.
+	</p>
+
+	<p>
+	The builder type specifies the OpenShift build environment for your application.
+	For example, if you chose <i>jbossas-7</i> as your Builder Type, your Jenkins job will
+	run in a JBoss AS 7 environment, identical to an application environment.  The same
+	environments variables (i.e. OPENSHIFT_DATA_DIR) will be available and can be used
+	in your build.
+	</p>
+	
+	<p>
+	You can also select the <i>diy</i> builder type to have an default environment.  This
+	environment will not perform any application specific setup and can be used for more
+	general purpose builds.
+	</p>
+</div>

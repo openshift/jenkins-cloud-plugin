@@ -1,0 +1,7 @@
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler"
+xmlns:d="jelly:define" xmlns:l="/lib/layout" xmlns:t="/lib/hudson"
+xmlns:f="/lib/form">
+    <f:entry name="builderTimeout" title="Builder Timeout" field="builderTimeout">
+        <f:textbox field="builderTimeout" default="300000" />
+    </f:entry>
+</j:jelly>
