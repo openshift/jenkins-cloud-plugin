@@ -4,6 +4,8 @@ xmlns:f="/lib/form">
     <f:entry name="builderType" title="Builder Type" field="builderType">
         <select name="builderType">
             <f:option value="diy-0.1" selected="${instance.builderType=='diy-0.1'}">diy-0.1</f:option>
+            <f:option value="nodejs-0.6" selected="${instance.builderType=='nodejs-0.6'}">nodejs-0.6</f:option>
+            <f:option value="jbosseap-6.0" selected="${instance.builderType=='jbosseap-6.0'}">jbosseap-6.0</f:option>
             <f:option value="jbossas-7" selected="${instance.builderType=='jbossas-7'}">jbossas-7</f:option>
             <f:option value="php-5.3" selected="${instance.builderType=='php-5.3'}">php-5.3</f:option>
             <f:option value="perl-5.10" selected="${instance.builderType=='perl-5.10'}">perl-5.10</f:option>
