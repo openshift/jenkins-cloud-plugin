@@ -458,6 +458,10 @@ public final class OpenShiftCloud extends Cloud {
 
             }
         } else {
+        	LOGGER.info("Cancelling build - Label is null");
+        	
+        	cancelBuild(builderName);
+        	
         	throw new UnsupportedOperationException( "No Label");
         }        
 
@@ -620,6 +624,10 @@ public final class OpenShiftCloud extends Cloud {
 		return null;
 	}
 	
+	protected void cancelBuild(String builderName) {
+		cancelBuild(builderName, null);
+	}
+	
 	protected void cancelBuild(String builderName, String label) {
 		LOGGER.info("Cancelling build");
 		try {			
@@ -628,7 +636,11 @@ public final class OpenShiftCloud extends Cloud {
 	    		((OpenShiftSlave)existingNode).terminate();
 	    	}
 	    
-	    	Job job = (Job)Hudson.getInstance().getItem(label);
+	    	Job job = null;
+	    	
+	    	if (label != null)
+	    		job = (Job)Hudson.getInstance().getItem(label);
+	    	
 	    	if (job != null){
 		    	Queue.Item item = job.getQueueItem();
 		    	if (item != null){
@@ -641,7 +653,7 @@ public final class OpenShiftCloud extends Cloud {
 	    		Queue.Item[] items = queue.getItems();
 		    	if (items != null && items.length > 0){
 		    		boolean cancelled = queue.cancel(items[0]);
-		    		LOGGER.warning("Build for label " + label + " has been cancelled");
+		    		LOGGER.warning("Build for label/builderName " + label + "/" + builderName + " has been cancelled");
 		    	}
 	    	}
 		} catch (Exception e){
