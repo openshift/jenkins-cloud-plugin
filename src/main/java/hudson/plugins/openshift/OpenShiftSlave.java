@@ -214,6 +214,8 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 	        IUser user = OpenShiftCloud.get().getIUser();
 	     
 	        ICartridge cartridge = user.getCartridgeByName(framework);
+	        
+	        LOGGER.info("Creating builder application " + framework + " " + name + " ...");
 	     
 	        IApplication app = service.createApplication(name, cartridge, user, builderSize);
     	} catch (Exception e){

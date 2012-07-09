@@ -528,7 +528,7 @@ public final class OpenShiftCloud extends Cloud {
     }
 	
 	protected void reloadConfig(Label label) throws IOException, InterruptedException, ReactorException {
-		LOGGER.info("Reloading configuration...");
+		LOGGER.info("Reloading configuration for " + label.toString() + "...");
     	
     	String ip = System.getenv("OPENSHIFT_INTERNAL_IP");
     	String port = System.getenv("OPENSHIFT_INTERNAL_PORT");
@@ -536,11 +536,11 @@ public final class OpenShiftCloud extends Cloud {
     	String password = System.getenv("JENKINS_PASSWORD");
     	
     	String name = label.toString();
-    	if (name.endsWith("-build")) {
-            name = name.substring(0, name.indexOf("-build"));
-        }
+    	//if (name.endsWith("-build")) {
+        //    name = name.substring(0, name.indexOf("-build"));
+        //}
     	
-    	URL url = new URL("http://" + ip + ":" + port + "/job/" + name +"-build/config.xml");
+    	URL url = new URL("http://" + ip + ":" + port + "/job/" + name + "/config.xml");
     	HttpURLConnection connection = createConnection(url, username, password);
     	connection.setRequestMethod("GET");
     	String get = readToString(connection.getInputStream());
