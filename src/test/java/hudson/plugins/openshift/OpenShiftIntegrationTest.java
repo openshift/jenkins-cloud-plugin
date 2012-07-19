@@ -9,18 +9,20 @@ import hudson.slaves.NodeProvisioner.PlannedNode;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 import org.jvnet.hudson.test.HudsonTestCase;
 
-import com.openshift.express.client.IApplication;
-import com.openshift.express.client.ICartridge;
-import com.openshift.express.client.IOpenShiftService;
-import com.openshift.express.client.OpenShiftService;
-import com.openshift.express.client.configuration.DefaultConfiguration;
-import com.openshift.express.client.configuration.SystemConfiguration;
-import com.openshift.express.client.configuration.UserConfiguration;
-import com.openshift.express.internal.client.InternalUser;
+import com.openshift.client.IApplication;
+import com.openshift.client.ICartridge;
+import com.openshift.client.IOpenShiftConnection;
+import com.openshift.client.IUser;
+import com.openshift.client.OpenShiftException;
+import com.openshift.client.configuration.DefaultConfiguration;
+import com.openshift.client.configuration.SystemConfiguration;
+import com.openshift.client.configuration.UserConfiguration;
 
 public class OpenShiftIntegrationTest extends HudsonTestCase {
     private OpenShiftCloud cloud;
@@ -96,14 +98,26 @@ public class OpenShiftIntegrationTest extends HudsonTestCase {
     	} finally {
     		try {
     			
-    	        IOpenShiftService service = OpenShiftCloud.get().getOpenShiftService();
-    	        InternalUser user = new InternalUser(OpenShiftCloud.get().getUsername(), OpenShiftCloud.get().getPassword(), service);
-    	        ICartridge cartridge = user.getCartridgeByName(framework);
-    	        service.destroyApplication("rawbldr", cartridge, user);
+    			IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
+    	      
+    	        ICartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
+    	        user.getDefaultDomain().getApplicationByName("rawbldr").destroy();
         	} catch (Exception e){
         		e.printStackTrace();
         	}
     	}
+    }
+    
+    protected ICartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {
+    	List<ICartridge> cartridges = connection.getStandaloneCartridges();
+    	Iterator<ICartridge> iterator = cartridges.iterator();
+    	while (iterator.hasNext()){
+    		ICartridge cartridge = iterator.next();
+    		if (cartridge.getName().equals(framework))
+    			return cartridge;
+    	}
+    	
+    	throw new OpenShiftException("Cartridge for " + framework + " not found");
     }
 
     /**

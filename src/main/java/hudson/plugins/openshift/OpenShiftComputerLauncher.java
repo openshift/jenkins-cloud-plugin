@@ -6,8 +6,6 @@ import hudson.remoting.Channel.Listener;
 import hudson.slaves.ComputerLauncher;
 import hudson.slaves.SlaveComputer;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -20,7 +18,7 @@ import com.jcraft.jsch.ChannelExec;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
-import com.openshift.express.client.OpenShiftException;
+import com.openshift.client.OpenShiftException;
 
 public class OpenShiftComputerLauncher extends ComputerLauncher {
 

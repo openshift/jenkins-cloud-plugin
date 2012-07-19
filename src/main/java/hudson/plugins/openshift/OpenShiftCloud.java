@@ -1,10 +1,6 @@
 package hudson.plugins.openshift;
 
-import hudson.DescriptorExtensionList;
 import hudson.Extension;
-import hudson.model.Items;
-import hudson.model.TopLevelItem;
-import hudson.model.TopLevelItemDescriptor;
 import hudson.model.AbstractProject;
 import hudson.model.Computer;
 import hudson.model.Descriptor;
@@ -13,7 +9,6 @@ import hudson.model.Job;
 import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.Queue;
-import hudson.model.User;
 import hudson.slaves.Cloud;
 import hudson.slaves.NodeProvisioner.PlannedNode;
 
@@ -22,15 +17,9 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.Reader;
-import java.io.StringWriter;
-import java.net.Authenticator;
 import java.net.HttpURLConnection;
-import java.net.PasswordAuthentication;
 import java.net.URL;
-import java.net.URLConnection;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -60,17 +49,17 @@ import org.jvnet.hudson.reactor.ReactorException;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 
-import com.openshift.express.client.IOpenShiftService;
-import com.openshift.express.client.IUser;
-import com.openshift.express.client.OpenShiftException;
-import com.openshift.express.client.OpenShiftService;
-import com.openshift.express.client.configuration.DefaultConfiguration;
-import com.openshift.express.client.configuration.SystemConfiguration;
-import com.openshift.express.client.configuration.UserConfiguration;
-import com.openshift.express.internal.client.ApplicationInfo;
-import com.openshift.express.internal.client.InternalUser;
-import com.openshift.express.internal.client.UserInfo;
-import com.openshift.express.internal.client.utils.StreamUtils;
+import com.openshift.client.IApplication;
+import com.openshift.client.IOpenShiftConnection;
+import com.openshift.client.IUser;
+import com.openshift.client.OpenShiftConnectionFactory;
+import com.openshift.client.OpenShiftException;
+import com.openshift.client.configuration.DefaultConfiguration;
+import com.openshift.client.configuration.SystemConfiguration;
+import com.openshift.client.configuration.UserConfiguration;
+import com.openshift.internal.client.ApplicationResource;
+import com.openshift.internal.client.UserResource;
+import com.openshift.internal.client.utils.StreamUtils;
 
 /**
  * Represents the available cloud of OpenShift instances for building.
@@ -95,7 +84,7 @@ public final class OpenShiftCloud extends Cloud {
 	private transient File privateKey;
 	private String brokerAuthKey;
 	private String brokerAuthIV;
-	private IOpenShiftService service;
+	private IOpenShiftConnection service;
 
 	static {
 		javax.net.ssl.HttpsURLConnection
@@ -128,7 +117,7 @@ public final class OpenShiftCloud extends Cloud {
 		this.ignoreBrokerCertCheck = ignoreBrokerCertCheck;
 	}
 
-	public IOpenShiftService getOpenShiftService() throws IOException {
+	public IOpenShiftConnection getOpenShiftConnection() throws IOException {
 		if (service == null) {
 			try {
 
@@ -156,7 +145,14 @@ public final class OpenShiftCloud extends Cloud {
 					LOGGER.info("Initiating Java Client Service - Configured for OpenShift Server "
 							+ url);
 				}
-				service = new OpenShiftService(username, url);
+				
+				service = new OpenShiftConnectionFactory().getConnection(
+						username,
+						username,
+						password,
+						authKey,
+						authIV,
+						url);
 
 				service.setEnableSSLCertChecks(!ignoreBrokerCertCheck);
 
@@ -274,10 +270,11 @@ public final class OpenShiftCloud extends Cloud {
 	 * 
 	 * @return whether a new builder should be provisioned
 	 */
-	protected boolean hasCapacity(String name, UserInfo userInfo) throws IOException {
+	protected boolean hasCapacity(String name, IUser user)
+			throws IOException {
 		LOGGER.info("Checking capacity");
-    	long maxGears = userInfo.getMaxGears();
-        long consumedGears = userInfo.getConsumedGears();
+		long maxGears = user.getMaxGears();
+		long consumedGears = user.getConsumedGears();
 
 		LOGGER.info("User has consumed " + consumedGears + " of " + maxGears
 				+ " gears.");
@@ -286,17 +283,18 @@ public final class OpenShiftCloud extends Cloud {
 		if (!hasCapacity) {
 			LOGGER.info("No capacity remaining.  Not provisioning...");
 			return false;
-		} 
-		
+		}
+
 		return true;
 	}
-	
-	protected boolean builderExists(String name, UserInfo userInfo) throws IOException {
-		List<ApplicationInfo> appInfos = userInfo.getApplicationInfos();
+
+	protected boolean builderExists(String name, IUser userInfo) 
+			throws IOException, OpenShiftException {
+		List<IApplication> applications = userInfo.getDefaultDomain().getApplications();
 		LOGGER.info("Capacity remaining - checking for existing type...");
 		for (@SuppressWarnings("unchecked")
-		Iterator<ApplicationInfo> i = appInfos.iterator(); i.hasNext();) {
-			ApplicationInfo app = i.next();
+		Iterator<IApplication> i = applications.iterator(); i.hasNext();) {
+			IApplication app = i.next();
 			if (app.getName().equals(name)) {
 				LOGGER.info("Found an existing builder.  Not provisioning...");
 				return true;
@@ -307,45 +305,12 @@ public final class OpenShiftCloud extends Cloud {
 		return false;
 	}
 
-	/*
-	 * public HttpClient getHttpClient() throws IOException { HttpClient client
-	 * = new HttpClient();
-	 * 
-	 * // Use a proxy if specified if (proxyHost != null &&
-	 * !proxyHost.trim().isEmpty()) {
-	 * client.getHostConfiguration().setProxy(proxyHost, proxyPort); }
-	 * 
-	 * // Ignore SSL if specified if (ignoreBrokerCertCheck) { try {
-	 * TrustManager easyTrustManager = new X509TrustManager() { public
-	 * X509Certificate[] getAcceptedIssuers() { return null; }
-	 * 
-	 * public void checkServerTrusted(X509Certificate[] chain, String authType)
-	 * throws CertificateException { }
-	 * 
-	 * public void checkClientTrusted(X509Certificate[] chain, String authType)
-	 * throws CertificateException { } }; SSLContext ctx =
-	 * SSLContext.getInstance("TLS"); ctx.init(null, new TrustManager[] {
-	 * easyTrustManager }, null); SSLContext.setDefault(ctx); } catch (Exception
-	 * e) { throw new IOException(e); } }
-	 * 
-	 * return client; }
-	 */
-
-	public UserInfo getUserInfo() throws IOException {
+/*	public UserResource getUserInfo() throws IOException {
 		return getUserInfo(false);
 	}
 
-	/*
-	 * private void setupLoginInfo(PostMethod method, JSONObject jsonObject)
-	 * throws IOException { if (getBrokerAuthKey() != null) {
-	 * method.addParameter("broker_auth_key", getBrokerAuthKey());
-	 * method.addParameter("broker_auth_iv", getBrokerAuthIV()); } else {
-	 * jsonObject.put("rhlogin", username); method.addParameter("password",
-	 * password); } }
-	 */
-
 	public IUser getIUser() throws IOException {
-		InternalUser user;
+		UserResource user = new UserResource();
 
 		service = getOpenShiftService();
 
@@ -358,7 +323,7 @@ public final class OpenShiftCloud extends Cloud {
 		return user;
 	}
 
-	public UserInfo getUserInfo(boolean force) throws IOException {
+	public UserResource getUserInfo(boolean force) throws IOException {
 		try {
 			service = getOpenShiftService();
 
@@ -376,224 +341,219 @@ public final class OpenShiftCloud extends Cloud {
 			e.printStackTrace();
 			throw new IOException(e);
 		}
-
-		/*
-		 * if (jsonData == null || force) { HttpClient client = getHttpClient();
-		 * PostMethod method = new PostMethod(url + "/userinfo"); JSONObject
-		 * jsonObject = new JSONObject(); setupLoginInfo(method, jsonObject);
-		 * method.addParameter("json_data", jsonObject.toString());
-		 * client.executeMethod(method); byte[] responseBody =
-		 * method.getResponseBody(); method.releaseConnection(); JSONObject
-		 * strResponse = (JSONObject) JSONSerializer .toJSON(new
-		 * String(responseBody)); String strData = (String)
-		 * strResponse.get("data");
-		 * 
-		 * // You need to remove the quotes and re-parse after getting the //
-		 * 'data' value strData = strData.substring(1, strData.length() - 1);
-		 * jsonData = (JSONObject) JSONSerializer.toJSON(strData); }
-		 * 
-		 * LOGGER.info("Data = " + jsonData.toString());
-		 * 
-		 * return jsonData;
-		 */
-	}
+	} */
 
 	public Collection<PlannedNode> provision(Label label, int excessWorkload) {
-        List<PlannedNode> result = new ArrayList<PlannedNode>();
-        LOGGER.info("Provisioning new node for workload = " + excessWorkload
-                + " and label = " + label);
-       
-        // First, sync the state of the running applications and the Jenkins
-        // slaves
-        List<OpenShiftSlave> slaves = null;
-        try {
-        	slaves = getSlaves();
-            for (OpenShiftSlave slave : slaves) {
-                Hudson.getInstance().addNode(slave);
-            }
-        }
-        catch (IOException e) {
-            LOGGER.log(Level.SEVERE,
-                    "Exception caught trying to load existing slaves", e);
-        }
+		List<PlannedNode> result = new ArrayList<PlannedNode>();
+		LOGGER.info("Provisioning new node for workload = " + excessWorkload
+				+ " and label = " + label);
 
-        String builderType = "diy-0.1";
-        String builderName = "raw" + APP_NAME_BUILDER_EXTENSION;
-        String builderSize = OpenShiftCloud.get().getDefaultBuilderSize();
-        long builderTimeout = DEFAULT_TIMEOUT;
-        
-        String labelStr = DEFAULT_LABEL;
-
-        // Derive the builderType
-        if (label != null) {
-            labelStr = label.toString();
-            
-            AbstractProject job = Hudson.getInstance().getItemByFullName(
-                    labelStr, AbstractProject.class);
-            if (job != null) {
-                OpenShiftBuilderSizeJobProperty osbsjp = ((OpenShiftBuilderSizeJobProperty) job
-                        .getProperty(OpenShiftBuilderSizeJobProperty.class));
-                builderSize = osbsjp.builderSize;
-
-                OpenShiftBuilderTypeJobProperty osbtjp = ((OpenShiftBuilderTypeJobProperty) job
-                        .getProperty(OpenShiftBuilderTypeJobProperty.class));
-                builderType = osbtjp.builderType;
-                
-                OpenShiftBuilderTimeoutJobProperty timeoutJobProperty = ((OpenShiftBuilderTimeoutJobProperty) job
-                        .getProperty(OpenShiftBuilderTimeoutJobProperty.class));
-                if (timeoutJobProperty != null)
-                	builderTimeout = timeoutJobProperty.builderTimeout;
-                else
-                	builderTimeout = -1;
-                
-                
-                if (labelStr.endsWith("-build")) {
-                    builderName = labelStr.substring(0, labelStr.indexOf("-build"));
-                }
-                
-                if (builderName.length() > (APP_NAME_MAX_LENGTH - APP_NAME_BUILDER_EXTENSION.length())) {
-                    builderName = builderName.substring(0, APP_NAME_MAX_LENGTH - APP_NAME_BUILDER_EXTENSION.length());
-                }
-                builderName = builderName + APP_NAME_BUILDER_EXTENSION;
-
-            }
-        } else {
-        	LOGGER.info("Cancelling build - Label is null");
-        	
-        	cancelBuild(builderName);
-        	
-        	throw new UnsupportedOperationException( "No Label");
-        }        
-
-        final String framework = builderType;
-        final String name = builderName;
-        final String size = builderSize;
-        final String plannedNodeName = labelStr;
-        final long timeout = builderTimeout;
-        final int executors = excessWorkload;
-        
-        try {
-            // Create builders for any excess workload
-              
-            if (excessWorkload > 0){
-            	OpenShiftSlave slave = getSlave(slaves, builderName);
-            	UserInfo userInfo = getUserInfo();
-            	
-            	if (slave != null && builderExists(builderName, userInfo)) {
-            		LOGGER.info("Slave exists without corresponding builder. Deleting slave");
-            		slave.terminate();
-            		return result;
-            	}
-            
-            	if (!hasCapacity(name, userInfo)) {
-                    LOGGER.info("Not provisioning new builder...");
-                } else {
-                	reloadConfig(label);
-                	PlannedNode node = new PlannedNode(plannedNodeName,
-                        Computer.threadPoolForRemoting
-                                .submit(new Callable<Node>() {
-                                    public Node call() throws Exception {
-                                        // Provision a new slave builder
-                                        OpenShiftSlave slave = new OpenShiftSlave(
-                                                name, framework, size,
-                                                plannedNodeName, timeout, executors);
-                                        
-                                        try {
-	                                        slave.provision();
-	                                        Hudson.getInstance().addNode(slave);
-	                                        return slave;
-                                        } catch (Exception e){
-                                        	LOGGER.warning("Unable to provision node " + e);
-                                        	cancelBuild(name, plannedNodeName);
-                                        	throw e;
-                                        }
-                                    }
-                                }), executors);
-
-                	result.add(node);
-                }
-                
-                LOGGER.info("Provisioned " + result.size() + " new nodes");
-                
-                if (result.size() == 0) {
-                	cancelBuild(builderName, label.getName());
-                }
-            }
-        }
-        catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Exception caught trying to provision", e);
-        }
-        
-        return result;
-    }
+		// First, sync the state of the running applications and the Jenkins
+		// slaves
+		List<OpenShiftSlave> slaves = null;
+		try {
+			slaves = getSlaves();
+			for (OpenShiftSlave slave : slaves) {
+				Hudson.getInstance().addNode(slave);
+			}
+		} catch (Exception e) {
+			LOGGER.log(Level.SEVERE,
+					"Exception caught trying to load existing slaves", e);
+		}
 	
-	protected void reloadConfig(Label label) throws IOException, InterruptedException, ReactorException {
-		LOGGER.info("Reloading configuration for " + label.toString() + "...");
-    	
-    	String ip = System.getenv("OPENSHIFT_INTERNAL_IP");
-    	String port = System.getenv("OPENSHIFT_INTERNAL_PORT");
-    	String username = System.getenv("JENKINS_USERNAME");
-    	String password = System.getenv("JENKINS_PASSWORD");
-    	
-    	String name = label.toString();
-    	//if (name.endsWith("-build")) {
-        //    name = name.substring(0, name.indexOf("-build"));
-        //}
-    	
-    	URL url = new URL("http://" + ip + ":" + port + "/job/" + name + "/config.xml");
-    	HttpURLConnection connection = createConnection(url, username, password);
-    	connection.setRequestMethod("GET");
-    	String get = readToString(connection.getInputStream());
-    	LOGGER.info("Reload config " + get);
-    	
-    	connection = createConnection(url, username, password);
-    	connection.setRequestMethod("POST");
-    	connection.setDoOutput(true);
-    	writeTo(get.getBytes(), connection.getOutputStream());
-    	String result = readToString(connection.getInputStream());
-    	LOGGER.info("Reload result " + result);
+
+		String builderType = "diy-0.1";
+		String builderName = "raw" + APP_NAME_BUILDER_EXTENSION;
+		String builderSize = OpenShiftCloud.get().getDefaultBuilderSize();
+		long builderTimeout = DEFAULT_TIMEOUT;
+
+		String labelStr = DEFAULT_LABEL;
+
+		// Derive the builderType
+		if (label != null) {
+			labelStr = label.toString();
+
+			AbstractProject job = Hudson.getInstance().getItemByFullName(
+					labelStr, AbstractProject.class);
+			if (job != null) {
+				OpenShiftBuilderSizeJobProperty osbsjp = ((OpenShiftBuilderSizeJobProperty) job
+						.getProperty(OpenShiftBuilderSizeJobProperty.class));
+				builderSize = osbsjp.builderSize;
+
+				OpenShiftBuilderTypeJobProperty osbtjp = ((OpenShiftBuilderTypeJobProperty) job
+						.getProperty(OpenShiftBuilderTypeJobProperty.class));
+				builderType = osbtjp.builderType;
+
+				OpenShiftBuilderTimeoutJobProperty timeoutJobProperty = ((OpenShiftBuilderTimeoutJobProperty) job
+						.getProperty(OpenShiftBuilderTimeoutJobProperty.class));
+				if (timeoutJobProperty != null)
+					builderTimeout = timeoutJobProperty.builderTimeout;
+				else
+					builderTimeout = -1;
+
+				if (labelStr.endsWith("-build")) {
+					builderName = labelStr.substring(0,
+							labelStr.indexOf("-build"));
+				}
+
+				if (builderName.length() > (APP_NAME_MAX_LENGTH - APP_NAME_BUILDER_EXTENSION
+						.length())) {
+					builderName = builderName.substring(0, APP_NAME_MAX_LENGTH
+							- APP_NAME_BUILDER_EXTENSION.length());
+				}
+				builderName = builderName + APP_NAME_BUILDER_EXTENSION;
+
+			}
+		} else {
+			LOGGER.info("Cancelling build - Label is null");
+
+			cancelBuild(builderName);
+
+			throw new UnsupportedOperationException("No Label");
+		}
+
+		final String framework = builderType;
+		final String name = builderName;
+		final String size = builderSize;
+		final String plannedNodeName = labelStr;
+		final long timeout = builderTimeout;
+		final int executors = excessWorkload;
+
+		try {
+			// Create builders for any excess workload
+
+			if (excessWorkload > 0) {
+				OpenShiftSlave slave = getSlave(slaves, builderName);
+				
+				IUser user = this.getOpenShiftConnection().getUser();
+
+				if (slave != null && builderExists(builderName, user)) {
+					LOGGER.info("Slave exists without corresponding builder. Deleting slave");
+					slave.terminate();
+					return result;
+				}
+
+				if (!hasCapacity(name, user)) {
+					LOGGER.info("Not provisioning new builder...");
+				} else {
+					reloadConfig(label);
+					PlannedNode node = new PlannedNode(plannedNodeName,
+							Computer.threadPoolForRemoting
+									.submit(new Callable<Node>() {
+										public Node call() throws Exception {
+											// Provision a new slave builder
+											OpenShiftSlave slave = new OpenShiftSlave(
+													name, framework, size,
+													plannedNodeName, timeout,
+													executors);
+
+											try {
+												slave.provision();
+												Hudson.getInstance().addNode(
+														slave);
+												return slave;
+											} catch (Exception e) {
+												LOGGER.warning("Unable to provision node "
+														+ e);
+												cancelBuild(name,
+														plannedNodeName);
+												throw e;
+											}
+										}
+									}), executors);
+
+					result.add(node);
+				}
+
+				LOGGER.info("Provisioned " + result.size() + " new nodes");
+
+				if (result.size() == 0) {
+					cancelBuild(builderName, label.getName());
+				}
+			}
+		} catch (Exception e) {
+			LOGGER.log(Level.SEVERE, "Exception caught trying to provision", e);
+		}
+
+		return result;
 	}
-	
-	protected void writeTo(byte[] data, OutputStream outputStream) throws IOException {
+
+	protected void reloadConfig(Label label) throws IOException,
+			InterruptedException, ReactorException {
+		LOGGER.info("Reloading configuration for " + label.toString() + "...");
+
+		String ip = System.getenv("OPENSHIFT_INTERNAL_IP");
+		String port = System.getenv("OPENSHIFT_INTERNAL_PORT");
+		String username = System.getenv("JENKINS_USERNAME");
+		String password = System.getenv("JENKINS_PASSWORD");
+
+		String name = label.toString();
+		// if (name.endsWith("-build")) {
+		// name = name.substring(0, name.indexOf("-build"));
+		// }
+
+		URL url = new URL("http://" + ip + ":" + port + "/job/" + name
+				+ "/config.xml");
+		HttpURLConnection service = createConnection(url, username, password);
+		service.setRequestMethod("GET");
+		String get = readToString(service.getInputStream());
+		LOGGER.info("Reload config " + get);
+
+		service = createConnection(url, username, password);
+		service.setRequestMethod("POST");
+		service.setDoOutput(true);
+		writeTo(get.getBytes(), service.getOutputStream());
+		String result = readToString(service.getInputStream());
+		LOGGER.info("Reload result " + result);
+	}
+
+	protected void writeTo(byte[] data, OutputStream outputStream)
+			throws IOException {
 		outputStream.write(data);
 		outputStream.flush();
 		outputStream.close();
 	}
-	
-	protected HttpURLConnection createConnection(URL url, String username, String password) throws IOException {
-		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-	
-//		HttpsURLConnection httpsConnection = (HttpsURLConnection) connection;
-//		httpsConnection.setHostnameVerifier(new NoopHostnameVerifier());
-//		setPermissiveSSLSocketFactory(httpsConnection);
-		
-		connection.setUseCaches(false);
-		connection.setDoInput(true);
-		connection.setAllowUserInteraction(true);
-		connection.setRequestProperty("Content-Type", "text/plain");
-		connection.setInstanceFollowRedirects(true);
-		
+
+	protected HttpURLConnection createConnection(URL url, String username,
+			String password) throws IOException {
+		HttpURLConnection service = (HttpURLConnection) url.openConnection();
+
+		// HttpsURLConnection httpsConnection = (HttpsURLConnection) service;
+		// httpsConnection.setHostnameVerifier(new NoopHostnameVerifier());
+		// setPermissiveSSLSocketFactory(httpsConnection);
+
+		service.setUseCaches(false);
+		service.setDoInput(true);
+		service.setAllowUserInteraction(true);
+		service.setRequestProperty("Content-Type", "text/plain");
+		service.setInstanceFollowRedirects(true);
+
 		LOGGER.info("Using credentials " + username + ":" + password);
-	
-		String basicAuth = "Basic " + new String(Base64.encodeBase64(new String(username + ":" + password).getBytes()));
-		connection.setRequestProperty("Authorization", basicAuth);
-		
-		return connection;
+
+		String basicAuth = "Basic "
+				+ new String(Base64.encodeBase64(new String(username + ":"
+						+ password).getBytes()));
+		service.setRequestProperty("Authorization", basicAuth);
+
+		return service;
 	}
-	
-	private void setPermissiveSSLSocketFactory(HttpsURLConnection connection) {
+
+	private void setPermissiveSSLSocketFactory(HttpsURLConnection service) {
 		try {
 			SSLContext sslContext = SSLContext.getInstance("SSL");
-			sslContext.init(new KeyManager[0], new TrustManager[] { new PermissiveTrustManager() }, new SecureRandom());
+			sslContext.init(new KeyManager[0],
+					new TrustManager[] { new PermissiveTrustManager() },
+					new SecureRandom());
 			SSLSocketFactory socketFactory = sslContext.getSocketFactory();
-			((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
+			((HttpsURLConnection) service)
+					.setSSLSocketFactory(socketFactory);
 		} catch (KeyManagementException e) {
 			// ignore
 		} catch (NoSuchAlgorithmException e) {
 			// ignore
 		}
 	}
-	
+
 	private String readToString(InputStream inputStream) throws IOException {
 		if (inputStream == null) {
 			return null;
@@ -602,63 +562,68 @@ public final class OpenShiftCloud extends Cloud {
 		inputStream.read(data);
 		return new String(data);
 	}
-	
-	protected boolean isBuildRunning(Label label) {	
-    	boolean running = false;
-    	Job job = (Job)Hudson.getInstance().getItem(label.getName());
-    	if (job != null){
-	    	Queue.Item item = job.getQueueItem();
-	    	if (item != null)
-	    		running = true;
-    	}
-		
+
+	protected boolean isBuildRunning(Label label) {
+		boolean running = false;
+		Job job = (Job) Hudson.getInstance().getItem(label.getName());
+		if (job != null) {
+			Queue.Item item = job.getQueueItem();
+			if (item != null)
+				running = true;
+		}
+
 		return running;
 	}
-	
-	protected OpenShiftSlave getSlave(List<OpenShiftSlave> slaves, String builderName) {
+
+	protected OpenShiftSlave getSlave(List<OpenShiftSlave> slaves,
+			String builderName) {
 		for (OpenShiftSlave slave : slaves) {
-			LOGGER.info("slaveExists " + slave.getDisplayName() + " " + builderName);
+			LOGGER.info("slaveExists " + slave.getDisplayName() + " "
+					+ builderName);
 			if (slave.getDisplayName().equals(builderName))
 				return slave;
 		}
 		return null;
 	}
-	
+
 	protected void cancelBuild(String builderName) {
 		cancelBuild(builderName, null);
 	}
-	
+
 	protected void cancelBuild(String builderName, String label) {
 		LOGGER.info("Cancelling build");
-		try {			
+		try {
 			Node existingNode = Hudson.getInstance().getNode(builderName);
-	    	if (existingNode != null && existingNode instanceof OpenShiftSlave){
-	    		((OpenShiftSlave)existingNode).terminate();
-	    	}
-	    
-	    	Job job = null;
-	    	
-	    	if (label != null)
-	    		job = (Job)Hudson.getInstance().getItem(label);
-	    	
-	    	if (job != null){
-		    	Queue.Item item = job.getQueueItem();
-		    	if (item != null){
-		    		Queue queue = Queue.getInstance();
-		    		boolean cancelled = queue.cancel(item);
-		    		LOGGER.warning("Build for job " + job.getName() + " has been cancelled");
-		    	}
-	    	} else {
-	    		Queue queue = Hudson.getInstance().getQueue();
-	    		Queue.Item[] items = queue.getItems();
-		    	if (items != null && items.length > 0){
-		    		boolean cancelled = queue.cancel(items[0]);
-		    		LOGGER.warning("Build for label/builderName " + label + "/" + builderName + " has been cancelled");
-		    	}
-	    	}
-		} catch (Exception e){
-			LOGGER.log(Level.SEVERE, "Exception caught trying to terminate slave", e);
-		} 
+			if (existingNode != null && existingNode instanceof OpenShiftSlave) {
+				((OpenShiftSlave) existingNode).terminate();
+			}
+
+			Job job = null;
+
+			if (label != null)
+				job = (Job) Hudson.getInstance().getItem(label);
+
+			if (job != null) {
+				Queue.Item item = job.getQueueItem();
+				if (item != null) {
+					Queue queue = Queue.getInstance();
+					boolean cancelled = queue.cancel(item);
+					LOGGER.warning("Build for job " + job.getName()
+							+ " has been cancelled");
+				}
+			} else {
+				Queue queue = Hudson.getInstance().getQueue();
+				Queue.Item[] items = queue.getItems();
+				if (items != null && items.length > 0) {
+					boolean cancelled = queue.cancel(items[0]);
+					LOGGER.warning("Build for label/builderName " + label + "/"
+							+ builderName + " has been cancelled");
+				}
+			}
+		} catch (Exception e) {
+			LOGGER.log(Level.SEVERE,
+					"Exception caught trying to terminate slave", e);
+		}
 	}
 
 	@Extension
@@ -734,14 +699,14 @@ public final class OpenShiftCloud extends Cloud {
 	}
 
 	@SuppressWarnings("unchecked")
-	protected List<OpenShiftSlave> getSlaves() throws IOException {
+	protected List<OpenShiftSlave> getSlaves() throws IOException, OpenShiftException {
 
-		List<ApplicationInfo> appInfos = getUserInfo(true)
-				.getApplicationInfos();
+		List<IApplication> appInfos = this.getOpenShiftConnection().getUser().getDefaultDomain().getApplications();
+				
 		List<OpenShiftSlave> slaveList = new ArrayList<OpenShiftSlave>();
 
-		for (Iterator<ApplicationInfo> i = appInfos.iterator(); i.hasNext();) {
-			ApplicationInfo appInfo = i.next();
+		for (Iterator<IApplication> i = appInfos.iterator(); i.hasNext();) {
+			IApplication appInfo = i.next();
 			String appName = appInfo.getName();
 			if (appName.endsWith(APP_NAME_BUILDER_EXTENSION)) {
 				Node node = Hudson.getInstance().getNode(appName);
@@ -766,7 +731,7 @@ public final class OpenShiftCloud extends Cloud {
 		}
 		return slaveList;
 	}
-	
+
 	private static class NoopHostnameVerifier implements HostnameVerifier {
 
 		public boolean verify(String hostname, SSLSession sslSession) {
@@ -780,12 +745,12 @@ public final class OpenShiftCloud extends Cloud {
 			return null;
 		}
 
-		public void checkServerTrusted(X509Certificate[] chain,
-				String authType) throws CertificateException {
+		public void checkServerTrusted(X509Certificate[] chain, String authType)
+				throws CertificateException {
 		}
 
-		public void checkClientTrusted(X509Certificate[] chain,
-				String authType) throws CertificateException {
+		public void checkClientTrusted(X509Certificate[] chain, String authType)
+				throws CertificateException {
 		}
 	}
 }

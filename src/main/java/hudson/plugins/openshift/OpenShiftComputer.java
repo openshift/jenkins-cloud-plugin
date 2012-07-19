@@ -21,7 +21,7 @@ public class OpenShiftComputer extends AbstractCloudComputer {
     }
 
     @Override
-    public String getHostName() throws IOException, InterruptedException {
+    public String getHostName() throws IOException {
         return getNode().getHostName();
     }
 }
