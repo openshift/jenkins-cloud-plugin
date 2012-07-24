@@ -579,12 +579,15 @@ public final class OpenShiftCloud extends Cloud {
 
 	protected OpenShiftSlave getSlave(List<OpenShiftSlave> slaves,
 			String builderName) {
-		for (OpenShiftSlave slave : slaves) {
-			LOGGER.info("slaveExists " + slave.getDisplayName() + " "
-					+ builderName);
-			if (slave.getDisplayName().equals(builderName))
-				return slave;
-		}
+		
+		if (slaves != null){
+			for (OpenShiftSlave slave : slaves) {
+				LOGGER.info("slaveExists " + slave.getDisplayName() + " "
+						+ builderName);
+				if (slave.getDisplayName().equals(builderName))
+					return slave;
+			}
+		} 
 		return null;
 	}
 
