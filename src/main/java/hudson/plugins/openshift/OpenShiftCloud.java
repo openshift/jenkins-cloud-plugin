@@ -344,6 +344,8 @@ public final class OpenShiftCloud extends Cloud {
 	} */
 
 	public Collection<PlannedNode> provision(Label label, int excessWorkload) {
+		service = null;
+		
 		List<PlannedNode> result = new ArrayList<PlannedNode>();
 		LOGGER.info("Provisioning new node for workload = " + excessWorkload
 				+ " and label = " + label);
@@ -494,16 +496,16 @@ public final class OpenShiftCloud extends Cloud {
 
 		URL url = new URL("http://" + ip + ":" + port + "/job/" + name
 				+ "/config.xml");
-		HttpURLConnection service = createConnection(url, username, password);
-		service.setRequestMethod("GET");
-		String get = readToString(service.getInputStream());
+		HttpURLConnection connection = createConnection(url, username, password);
+		connection.setRequestMethod("GET");
+		String get = readToString(connection.getInputStream());
 		LOGGER.info("Reload config " + get);
 
-		service = createConnection(url, username, password);
-		service.setRequestMethod("POST");
-		service.setDoOutput(true);
-		writeTo(get.getBytes(), service.getOutputStream());
-		String result = readToString(service.getInputStream());
+		connection = createConnection(url, username, password);
+		connection.setRequestMethod("POST");
+		connection.setDoOutput(true);
+		writeTo(get.getBytes(), connection.getOutputStream());
+		String result = readToString(connection.getInputStream());
 		LOGGER.info("Reload result " + result);
 	}
 
@@ -516,26 +518,26 @@ public final class OpenShiftCloud extends Cloud {
 
 	protected HttpURLConnection createConnection(URL url, String username,
 			String password) throws IOException {
-		HttpURLConnection service = (HttpURLConnection) url.openConnection();
+		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
 		// HttpsURLConnection httpsConnection = (HttpsURLConnection) service;
 		// httpsConnection.setHostnameVerifier(new NoopHostnameVerifier());
 		// setPermissiveSSLSocketFactory(httpsConnection);
 
-		service.setUseCaches(false);
-		service.setDoInput(true);
-		service.setAllowUserInteraction(true);
-		service.setRequestProperty("Content-Type", "text/plain");
-		service.setInstanceFollowRedirects(true);
+		connection.setUseCaches(false);
+		connection.setDoInput(true);
+		connection.setAllowUserInteraction(true);
+		connection.setRequestProperty("Content-Type", "text/plain");
+		connection.setInstanceFollowRedirects(true);
 
 		LOGGER.info("Using credentials " + username + ":" + password);
 
 		String basicAuth = "Basic "
 				+ new String(Base64.encodeBase64(new String(username + ":"
 						+ password).getBytes()));
-		service.setRequestProperty("Authorization", basicAuth);
+		connection.setRequestProperty("Authorization", basicAuth);
 
-		return service;
+		return connection;
 	}
 
 	private void setPermissiveSSLSocketFactory(HttpsURLConnection service) {

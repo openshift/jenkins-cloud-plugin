@@ -25,6 +25,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 
 import com.openshift.client.IApplication;
 import com.openshift.client.ICartridge;
+import com.openshift.client.IDomain;
 import com.openshift.client.IOpenShiftConnection;
 import com.openshift.client.IUser;
 import com.openshift.client.OpenShiftException;
@@ -231,7 +232,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 		IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
 		ICartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
 		
-		LOGGER.info("Creating builder application " + framework + " " + name + " ...");
+		LOGGER.info("Creating builder application " + framework + " " + name + " " + user.getDefaultDomain().getId() + " ...");
 		IApplication app = user.getDefaultDomain().createApplication(name, cartridge);
 
     }
