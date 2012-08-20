@@ -57,9 +57,6 @@ import com.openshift.client.OpenShiftException;
 import com.openshift.client.configuration.DefaultConfiguration;
 import com.openshift.client.configuration.SystemConfiguration;
 import com.openshift.client.configuration.UserConfiguration;
-import com.openshift.internal.client.ApplicationResource;
-import com.openshift.internal.client.UserResource;
-import com.openshift.internal.client.utils.StreamUtils;
 
 /**
  * Represents the available cloud of OpenShift instances for building.
@@ -84,7 +81,7 @@ public final class OpenShiftCloud extends Cloud {
 	private transient File privateKey;
 	private String brokerAuthKey;
 	private String brokerAuthIV;
-	private IOpenShiftConnection service;
+	private transient IOpenShiftConnection service;
 
 	static {
 		javax.net.ssl.HttpsURLConnection

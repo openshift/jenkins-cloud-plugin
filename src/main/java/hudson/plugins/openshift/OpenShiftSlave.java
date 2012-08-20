@@ -26,6 +26,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import com.openshift.client.IApplication;
 import com.openshift.client.ICartridge;
 import com.openshift.client.IDomain;
+import com.openshift.client.IGearProfile;
 import com.openshift.client.IOpenShiftConnection;
 import com.openshift.client.IUser;
 import com.openshift.client.OpenShiftException;
@@ -229,11 +230,21 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
     private void createApp() throws IOException, OpenShiftException {
     	
-		IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
+    	IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
+		IUser user = connection.getUser();
 		ICartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
+	
+		IDomain domain = user.getDefaultDomain();
+		List<IGearProfile> gearProfiles = domain.getAvailableGearProfiles();
+		IGearProfile gearProfile = gearProfiles.get(0);
+		for (IGearProfile profile : gearProfiles) {
+			if (profile.getName().equals(builderSize))
+				gearProfile = profile;
+		}
 		
-		LOGGER.info("Creating builder application " + framework + " " + name + " " + user.getDefaultDomain().getId() + " ...");
-		IApplication app = user.getDefaultDomain().createApplication(name, cartridge);
+		LOGGER.info("Creating builder application " + framework + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
+		
+		IApplication app = domain.createApplication(name, cartridge, gearProfile);
 
     }
 
