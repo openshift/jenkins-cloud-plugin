@@ -22,7 +22,11 @@
 			<url>http://evgeny-goldin.org/artifactory/repo</url>
 			<!--url>http://maven.glassfish.org/content/groups/public/</url-->
 		</repository>
-	</repositories>
+	        <repository>
+                        <id>repo.jenkins-ci.org</id>
+                        <url>http://repo.jenkins-ci.org/public/</url>
+                </repository>
+        </repositories>
 
 	<pluginRepositories>
 		<pluginRepository>
@@ -30,6 +34,10 @@
 			<url>http://evgeny-goldin.org/artifactory/repo</url>
 			<!--url>http://maven.glassfish.org/content/groups/public/</url-->
 		</pluginRepository>
+                <pluginRepository>
+                        <id>repo.jenkins-ci.org</id>
+                        <url>http://repo.jenkins-ci.org/public/</url>
+                </pluginRepository>
 	</pluginRepositories>
 	
 	<build>
