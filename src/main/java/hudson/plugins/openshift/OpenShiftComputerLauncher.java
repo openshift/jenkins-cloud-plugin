@@ -104,7 +104,7 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
             final Channel slaveChannel = sess.openChannel("exec");
             ((ChannelExec) slaveChannel)
                     .setEnv("GIT_SSH",
-                            "/usr/libexec/stickshift/cartridges/jenkins-1.4/info/bin/git_ssh_wrapper.sh");
+                            "/usr/libexec/openshift/cartridges/jenkins-1.4/info/bin/git_ssh_wrapper.sh");
             ((ChannelExec) slaveChannel).setAgentForwarding(true);
             ((ChannelExec) slaveChannel)
                     .setCommand("java -jar $OPENSHIFT_DATA_DIR/jenkins/slave.jar");
