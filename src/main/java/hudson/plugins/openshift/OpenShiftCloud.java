@@ -27,8 +27,10 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -52,6 +54,7 @@ import org.kohsuke.stapler.StaplerRequest;
 import com.openshift.client.IApplication;
 import com.openshift.client.IOpenShiftConnection;
 import com.openshift.client.IUser;
+import com.openshift.client.InvalidCredentialsOpenShiftException;
 import com.openshift.client.OpenShiftConnectionFactory;
 import com.openshift.client.OpenShiftException;
 import com.openshift.client.configuration.DefaultConfiguration;
@@ -68,6 +71,8 @@ public final class OpenShiftCloud extends Cloud {
 	public static final String APP_NAME_BUILDER_EXTENSION = "bldr";
 	public static final String DEFAULT_LABEL = "raw-build";
 	public static final long DEFAULT_TIMEOUT = 300000;
+	private static final int FAILURE_LIMIT = 5;
+	
 	private String username;
 	private String password;
 	private String authKey;
@@ -82,6 +87,8 @@ public final class OpenShiftCloud extends Cloud {
 	private String brokerAuthKey;
 	private String brokerAuthIV;
 	private transient IOpenShiftConnection service;
+	
+	private static Map<Object, Integer> failures = new HashMap<Object,Integer>();
 
 	static {
 		javax.net.ssl.HttpsURLConnection
@@ -424,7 +431,36 @@ public final class OpenShiftCloud extends Cloud {
 			if (excessWorkload > 0) {
 				OpenShiftSlave slave = getSlave(slaves, builderName);
 				
-				IUser user = this.getOpenShiftConnection().getUser();
+				IUser user = null;
+				
+				Queue.Item item = getItem(builderName, labelStr);
+				
+				try {
+					this.getOpenShiftConnection().getUser();
+					
+					if (item != null)
+						failures.remove(item.toString());
+				} catch (InvalidCredentialsOpenShiftException e) {
+					Integer count = failures.get(item.toString());
+					
+					LOGGER.info("InvalidCredentialsOpenShiftException " + count);
+					
+					if (count == null) {
+						count = 1;
+						failures.put(item.toString(),  count);
+					} else {
+						if (count == FAILURE_LIMIT){
+							LOGGER.warning("Cancelling build due to invalid credentials");
+							this.cancelItem(item, builderName, labelStr);
+							failures.remove(item.toString());
+						} else {
+							failures.put(item.toString(),  count + 1);
+						}
+					}
+					
+					throw e;
+					
+				}
 
 				if (slave != null && builderExists(builderName, user)) {
 					LOGGER.info("Slave exists without corresponding builder. Deleting slave");
@@ -591,15 +627,9 @@ public final class OpenShiftCloud extends Cloud {
 	protected void cancelBuild(String builderName) {
 		cancelBuild(builderName, null);
 	}
-
-	protected void cancelBuild(String builderName, String label) {
-		LOGGER.info("Cancelling build");
+	
+	protected Queue.Item getItem(String builderName, String label) {
 		try {
-			Node existingNode = Hudson.getInstance().getNode(builderName);
-			if (existingNode != null && existingNode instanceof OpenShiftSlave) {
-				((OpenShiftSlave) existingNode).terminate();
-			}
-
 			Job job = null;
 
 			if (label != null)
@@ -608,19 +638,48 @@ public final class OpenShiftCloud extends Cloud {
 			if (job != null) {
 				Queue.Item item = job.getQueueItem();
 				if (item != null) {
-					Queue queue = Queue.getInstance();
-					boolean cancelled = queue.cancel(item);
-					LOGGER.warning("Build for job " + job.getName()
-							+ " has been cancelled");
+					return item;
 				}
 			} else {
 				Queue queue = Hudson.getInstance().getQueue();
 				Queue.Item[] items = queue.getItems();
 				if (items != null && items.length > 0) {
-					boolean cancelled = queue.cancel(items[0]);
-					LOGGER.warning("Build for label/builderName " + label + "/"
-							+ builderName + " has been cancelled");
+					return items[0];
 				}
+			}
+		} catch (Exception e) {
+			LOGGER.log(Level.SEVERE,
+					"Exception caught trying to terminate slave", e);
+		}
+		return null;
+	}
+
+	protected void cancelBuild(String builderName, String label) {
+		LOGGER.info("Cancelling build");
+		try {
+			Node existingNode = Hudson.getInstance().getNode(builderName);
+			if (existingNode != null && existingNode instanceof OpenShiftSlave) {
+				((OpenShiftSlave) existingNode).terminate();
+			}
+			
+			Queue.Item item = getItem(builderName, label);
+
+			cancelItem(item, builderName, label);
+		} catch (Exception e) {
+			LOGGER.log(Level.SEVERE,
+					"Exception caught trying to terminate slave", e);
+		}
+	}
+	
+	protected void cancelItem(Queue.Item item, String builderName, String label) {
+		LOGGER.info("Cancelling build");
+		try {
+
+			if (item != null) {
+				Queue queue = Queue.getInstance();
+				boolean cancelled = queue.cancel(item);
+				LOGGER.warning("Build " + label + " " + builderName
+						+ " has been cancelled");
 			}
 		} catch (Exception e) {
 			LOGGER.log(Level.SEVERE,
