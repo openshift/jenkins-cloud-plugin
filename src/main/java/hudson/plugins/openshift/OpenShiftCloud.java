@@ -436,7 +436,7 @@ public final class OpenShiftCloud extends Cloud {
 				Queue.Item item = getItem(builderName, labelStr);
 				
 				try {
-					this.getOpenShiftConnection().getUser();
+					user = this.getOpenShiftConnection().getUser();
 					
 					if (item != null)
 						failures.remove(item.toString());
