@@ -245,6 +245,10 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 		LOGGER.info("Creating builder application " + framework + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
 		
 		IApplication app = domain.createApplication(name, cartridge, gearProfile);
+		
+		// No reason to have app running on builder gear - just need it installed
+		LOGGER.info("Stopping application on builder gear ...");
+		app.stop();
 
     }
 
