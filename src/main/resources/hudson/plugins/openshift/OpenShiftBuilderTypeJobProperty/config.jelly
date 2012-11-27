@@ -14,6 +14,7 @@ xmlns:f="/lib/form">
             <f:option value="python-2.6" selected="${instance.builderType=='python-2.6'}">python-2.6</f:option>
             <f:option value="zend-5.6" selected="${instance.builderType=='zend-5.6'}">zend-5.6</f:option>
             <f:option value="jbossews-1.0" selected="${instance.builderType=='jbossews-1.0'}">jbossews-1.0</f:option>
+            <f:option value="jbossews-2.0" selected="${instance.builderType=='jbossews-2.0'}">jbossews-2.0</f:option>
         </select>
     </f:entry>
 </j:jelly>

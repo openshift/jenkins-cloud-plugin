@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -83,6 +84,8 @@ public final class OpenShiftCloud extends Cloud {
 	private final int proxyPort;
 	private final String defaultBuilderSize;
 	private boolean ignoreBrokerCertCheck = true;
+	private int slaveIdleTimeToLive = 15;
+	private int maxSlaveIdleTimeToLive = 15;
 	private transient File privateKey;
 	private String brokerAuthKey;
 	private String brokerAuthIV;
@@ -108,7 +111,7 @@ public final class OpenShiftCloud extends Cloud {
 	@DataBoundConstructor
 	public OpenShiftCloud(String username, String password, String brokerHost,
 			String brokerPort, String proxyHost, int proxyPort,
-			boolean ignoreBrokerCertCheck, String defaultBuilderSize)
+			boolean ignoreBrokerCertCheck, int slaveIdleTimeToLive, int maxSlaveIdleTimeToLive, String defaultBuilderSize)
 			throws IOException {
 		super("OpenShift Cloud");
 		this.username = username;
@@ -117,8 +120,11 @@ public final class OpenShiftCloud extends Cloud {
 		this.brokerPort = brokerPort;
 		this.proxyHost = proxyHost;
 		this.proxyPort = proxyPort;
+		this.maxSlaveIdleTimeToLive = maxSlaveIdleTimeToLive;
+		this.slaveIdleTimeToLive = limitSlaveIdleTimeToLive(slaveIdleTimeToLive, maxSlaveIdleTimeToLive);
 		this.defaultBuilderSize = defaultBuilderSize;
 		this.ignoreBrokerCertCheck = ignoreBrokerCertCheck;
+		
 	}
 
 	public IOpenShiftConnection getOpenShiftConnection() throws IOException {
@@ -246,6 +252,14 @@ public final class OpenShiftCloud extends Cloud {
 
 	public int getProxyPort() {
 		return proxyPort;
+	}
+	
+	public int getSlaveIdleTimeToLive() {
+		return slaveIdleTimeToLive;
+	}
+	
+	public int getMaxSlaveIdleTimeToLive() {
+		return maxSlaveIdleTimeToLive;
 	}
 
 	public boolean getIgnoreBrokerCertCheck() {
@@ -480,7 +494,7 @@ public final class OpenShiftCloud extends Cloud {
 											OpenShiftSlave slave = new OpenShiftSlave(
 													name, framework, size,
 													plannedNodeName, timeout,
-													executors);
+													executors, slaveIdleTimeToLive);
 
 											try {
 												slave.provision();
@@ -686,6 +700,16 @@ public final class OpenShiftCloud extends Cloud {
 					"Exception caught trying to terminate slave", e);
 		}
 	}
+	
+	protected int limitSlaveIdleTimeToLive(int slaveTimeToLive, int maxSlaveIdleTimeToLive) {
+		if (maxSlaveIdleTimeToLive > 0 && ( slaveTimeToLive <= 0 || slaveTimeToLive > maxSlaveIdleTimeToLive) ) {
+			LOGGER.warning("Slave Idle Time to Live  " + slaveTimeToLive + " is greater than the max allowed " + maxSlaveIdleTimeToLive 
+					+ ". Using max.");
+			return maxSlaveIdleTimeToLive;
+		}
+		
+		return slaveTimeToLive;
+	}
 
 	@Extension
 	public static final class DescriptorImpl extends Descriptor<Cloud> {
@@ -697,6 +721,8 @@ public final class OpenShiftCloud extends Cloud {
 		private String defaultBuilderSize;
 		private int proxyPort;
 		private boolean ignoreBrokerCertCheck;
+		private int slaveIdleTimeToLive = 15;
+		private int maxSlaveIdleTimeToLive = 15;
 
 		public String getDisplayName() {
 			return "OpenShift Cloud";
@@ -712,6 +738,8 @@ public final class OpenShiftCloud extends Cloud {
 			brokerPort = o.getString("brokerPort");
 			proxyHost = o.getString("proxyHost");
 			proxyPort = o.getInt("proxyPort");
+			slaveIdleTimeToLive = o.getInt("slaveIdleTimeToLive");
+			maxSlaveIdleTimeToLive = o.getInt("maxSlaveIdleTimeToLive");
 			ignoreBrokerCertCheck = o.getBoolean("ignoreBrokerCertCheck");
 			defaultBuilderSize = o.getString("defaultBuilderSize");
 			save();
@@ -741,6 +769,14 @@ public final class OpenShiftCloud extends Cloud {
 
 		public int getProxyPort() {
 			return proxyPort;
+		}
+		
+		public int getSlaveIdleTimeToLive() {
+			return slaveIdleTimeToLive;
+		}
+		
+		public int getMaxSlaveIdleTimeToLive() {
+			return maxSlaveIdleTimeToLive;
 		}
 
 		public boolean getIgnoreBrokerCertCheck() {
@@ -779,7 +815,7 @@ public final class OpenShiftCloud extends Cloud {
 
 						slave = new OpenShiftSlave(appName, framework,
 								OpenShiftCloud.get().getDefaultBuilderSize(),
-								DEFAULT_LABEL, DEFAULT_TIMEOUT, 1);
+								DEFAULT_LABEL, DEFAULT_TIMEOUT, 1, slaveIdleTimeToLive);
 					} catch (Exception e) {
 						throw new IOException(e);
 					}
