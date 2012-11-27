@@ -702,7 +702,12 @@ public final class OpenShiftCloud extends Cloud {
 	}
 	
 	protected int limitSlaveIdleTimeToLive(int slaveTimeToLive, int maxSlaveIdleTimeToLive) {
-		if (maxSlaveIdleTimeToLive > 0 && ( slaveTimeToLive <= 0 || slaveTimeToLive > maxSlaveIdleTimeToLive) ) {
+		
+		if (slaveTimeToLive == 0 || maxSlaveIdleTimeToLive == 0) {
+			return 15;
+		}
+		
+		if (maxSlaveIdleTimeToLive > 0 && ( slaveTimeToLive < 0 || slaveTimeToLive > maxSlaveIdleTimeToLive) ) {
 			LOGGER.warning("Slave Idle Time to Live  " + slaveTimeToLive + " is greater than the max allowed " + maxSlaveIdleTimeToLive 
 					+ ". Using max.");
 			return maxSlaveIdleTimeToLive;
