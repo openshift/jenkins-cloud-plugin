@@ -300,7 +300,7 @@ public final class OpenShiftCloud extends Cloud {
 
 		if (!hasCapacity) {
 			LOGGER.info("No capacity remaining.  Not provisioning...");
-			return false;
+	//		return false;
 		}
 
 		return true;
@@ -367,6 +367,9 @@ public final class OpenShiftCloud extends Cloud {
 		List<PlannedNode> result = new ArrayList<PlannedNode>();
 		LOGGER.info("Provisioning new node for workload = " + excessWorkload
 				+ " and label = " + label);
+		
+		if (slaveIdleTimeToLive == 0)
+			slaveIdleTimeToLive = 15;
 
 		// First, sync the state of the running applications and the Jenkins
 		// slaves

@@ -58,6 +58,8 @@ public class OpenShiftSlave extends AbstractCloudSlave {
                 label, new OpenShiftComputerLauncher(),
                 new CloudRetentionStrategy(slaveIdleTimeToLive), Collections
                         .<NodeProperty<?>> emptyList());
+        
+        LOGGER.info("Creating slave with " + slaveIdleTimeToLive + "mins time-to-live");
                    
         this.framework = framework;
         this.builderSize = builderSize;
