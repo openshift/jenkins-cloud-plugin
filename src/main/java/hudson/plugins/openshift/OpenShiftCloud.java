@@ -91,8 +91,6 @@ public final class OpenShiftCloud extends Cloud {
 	private String brokerAuthIV;
 	private transient IOpenShiftConnection service;
 	
-	private static Map<Object, Integer> failures = new HashMap<Object,Integer>();
-
 	static {
 		javax.net.ssl.HttpsURLConnection
 				.setDefaultHostnameVerifier(new javax.net.ssl.HostnameVerifier() {
@@ -300,7 +298,7 @@ public final class OpenShiftCloud extends Cloud {
 
 		if (!hasCapacity) {
 			LOGGER.info("No capacity remaining.  Not provisioning...");
-	//		return false;
+			return false;
 		}
 
 		return true;
@@ -362,27 +360,16 @@ public final class OpenShiftCloud extends Cloud {
 	} */
 
 	public Collection<PlannedNode> provision(Label label, int excessWorkload) {
+		
 		service = null;
 		
-		List<PlannedNode> result = new ArrayList<PlannedNode>();
 		LOGGER.info("Provisioning new node for workload = " + excessWorkload
 				+ " and label = " + label);
 		
 		if (slaveIdleTimeToLive == 0)
 			slaveIdleTimeToLive = 15;
 
-		// First, sync the state of the running applications and the Jenkins
-		// slaves
-		List<OpenShiftSlave> slaves = null;
-		try {
-			slaves = getSlaves();
-			for (OpenShiftSlave slave : slaves) {
-				Hudson.getInstance().addNode(slave);
-			}
-		} catch (Exception e) {
-			LOGGER.log(Level.SEVERE,
-					"Exception caught trying to load existing slaves", e);
-		}
+		
 	
 
 		String builderType = "diy-0.1";
@@ -434,6 +421,43 @@ public final class OpenShiftCloud extends Cloud {
 
 			throw new UnsupportedOperationException("No Label");
 		}
+		
+		Queue.Item item = getItem(builderName, labelStr);
+		
+		List<PlannedNode> result = new ArrayList<PlannedNode>();
+		
+		int failures = 0;
+		while (failures < FAILURE_LIMIT) {
+			try {
+				provisionSlave(result, builderType, builderName, builderSize, label, labelStr, builderTimeout, excessWorkload);
+				
+				LOGGER.info("Provisioned " + result.size() + " new nodes");
+
+				if (result.size() == 0) {
+					cancelItem(item, builderName, labelStr);
+				}
+				
+				return result;
+			} catch (Exception e) {
+				++failures;
+				
+				LOGGER.warning("Caught " + e + ". Will retry " + (FAILURE_LIMIT - failures) + " more times before cancelling build.");
+			} 
+		}
+		
+		LOGGER.warning("Cancelling build due to earlier exceptions");
+		this.cancelItem(item, builderName, labelStr);
+		
+		return result;
+	}
+	
+	protected void provisionSlave(List<PlannedNode> result, String builderType, String builderName, String builderSize, Label label, String labelStr, long builderTimeout, int excessWorkload)
+		throws Exception
+	{
+		List<OpenShiftSlave> slaves =  getSlaves();
+		for (OpenShiftSlave slave : slaves) {
+			Hudson.getInstance().addNode(slave);
+		}
 
 		final String framework = builderType;
 		final String name = builderName;
@@ -442,92 +466,43 @@ public final class OpenShiftCloud extends Cloud {
 		final long timeout = builderTimeout;
 		final int executors = excessWorkload;
 
-		try {
-			// Create builders for any excess workload
+		if (excessWorkload > 0) {
+			OpenShiftSlave slave = getSlave(slaves, builderName);
+			
+			IUser user = this.getOpenShiftConnection().getUser();
 
-			if (excessWorkload > 0) {
-				OpenShiftSlave slave = getSlave(slaves, builderName);
-				
-				IUser user = null;
-				
-				Queue.Item item = getItem(builderName, labelStr);
-				
-				try {
-					user = this.getOpenShiftConnection().getUser();
-					
-					if (item != null)
-						failures.remove(item.toString());
-				} catch (InvalidCredentialsOpenShiftException e) {
-					Integer count = failures.get(item.toString());
-					
-					LOGGER.info("InvalidCredentialsOpenShiftException " + count);
-					
-					if (count == null) {
-						count = 1;
-						failures.put(item.toString(),  count);
-					} else {
-						if (count == FAILURE_LIMIT){
-							LOGGER.warning("Cancelling build due to invalid credentials");
-							this.cancelItem(item, builderName, labelStr);
-							failures.remove(item.toString());
-						} else {
-							failures.put(item.toString(),  count + 1);
-						}
-					}
-					
-					throw e;
-					
-				}
-
-				if (slave != null && builderExists(builderName, user)) {
-					LOGGER.info("Slave exists without corresponding builder. Deleting slave");
-					slave.terminate();
-					return result;
-				}
-
-				if (!hasCapacity(name, user)) {
-					LOGGER.info("Not provisioning new builder...");
-				} else {
-					reloadConfig(label);
-					PlannedNode node = new PlannedNode(plannedNodeName,
-							Computer.threadPoolForRemoting
-									.submit(new Callable<Node>() {
-										public Node call() throws Exception {
-											// Provision a new slave builder
-											OpenShiftSlave slave = new OpenShiftSlave(
-													name, framework, size,
-													plannedNodeName, timeout,
-													executors, slaveIdleTimeToLive);
-
-											try {
-												slave.provision();
-												Hudson.getInstance().addNode(
-														slave);
-												return slave;
-											} catch (Exception e) {
-												LOGGER.warning("Unable to provision node "
-														+ e);
-												cancelBuild(name,
-														plannedNodeName);
-												throw e;
-											}
-										}
-									}), executors);
-
-					result.add(node);
-				}
-
-				LOGGER.info("Provisioned " + result.size() + " new nodes");
-
-				if (result.size() == 0) {
-					cancelBuild(builderName, label.getName());
-				}
+			if (slave != null && builderExists(builderName, user)) {
+				LOGGER.info("Slave exists without corresponding builder. Deleting slave");
+				slave.terminate();
+				return;
 			}
-		} catch (Exception e) {
-			LOGGER.log(Level.SEVERE, "Exception caught trying to provision", e);
-		}
 
-		return result;
+			if (!hasCapacity(name, user)) {
+				LOGGER.info("Not provisioning new builder...");
+			} else {
+				reloadConfig(label);
+				PlannedNode node = new PlannedNode(plannedNodeName,
+						Computer.threadPoolForRemoting
+								.submit(new Callable<Node>() {
+									public Node call() throws Exception {
+										// Provision a new slave builder
+										OpenShiftSlave slave = new OpenShiftSlave(
+												name, framework, size,
+												plannedNodeName, timeout,
+												executors, slaveIdleTimeToLive);
+
+									
+										slave.provision();
+										Hudson.getInstance().addNode(
+												slave);
+										return slave;
+								
+									}
+								}), executors);
+
+				result.add(node);
+			}
+		}
 	}
 
 	protected void reloadConfig(Label label) throws IOException,
@@ -689,7 +664,7 @@ public final class OpenShiftCloud extends Cloud {
 	}
 	
 	protected void cancelItem(Queue.Item item, String builderName, String label) {
-		LOGGER.info("Cancelling build");
+		LOGGER.info("Cancelling Item ");
 		try {
 
 			if (item != null) {
