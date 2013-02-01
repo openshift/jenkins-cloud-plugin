@@ -55,7 +55,7 @@ public class OpenShiftIntegrationTest extends HudsonTestCase {
 
         // Create the new Cloud object
         cloud = new OpenShiftCloud(username, password,
-        		System.getProperty("libra_server"), "443", proxyHost, proxyPort, true, "small");
+        		System.getProperty("libra_server"), "443", proxyHost, proxyPort, true, 5, 5, "small");
 
         framework = "jbossas-7";
     }

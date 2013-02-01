@@ -321,44 +321,6 @@ public final class OpenShiftCloud extends Cloud {
 		return false;
 	}
 
-/*	public UserResource getUserInfo() throws IOException {
-		return getUserInfo(false);
-	}
-
-	public IUser getIUser() throws IOException {
-		UserResource user = new UserResource();
-
-		service = getOpenShiftService();
-
-		if (authKey != null)
-			user = new InternalUser(username, authKey, authIV, service);
-		else
-			user = new InternalUser(username, OpenShiftCloud.get()
-					.getPassword(), service);
-
-		return user;
-	}
-
-	public UserResource getUserInfo(boolean force) throws IOException {
-		try {
-			service = getOpenShiftService();
-
-			IUser user = getIUser();
-			if (authKey != null)
-				user = new InternalUser(username, authKey, authIV, service);
-			else
-				user = new InternalUser(username, OpenShiftCloud.get()
-						.getPassword(), service);
-
-			UserInfo userInfo = service.getUserInfo(user);
-
-			return userInfo;
-		} catch (OpenShiftException e) {
-			e.printStackTrace();
-			throw new IOException(e);
-		}
-	} */
-
 	public Collection<PlannedNode> provision(Label label, int excessWorkload) {
 		
 		service = null;
@@ -505,8 +467,7 @@ public final class OpenShiftCloud extends Cloud {
 		}
 	}
 
-	protected void reloadConfig(Label label) throws IOException,
-			InterruptedException, ReactorException {
+	protected void reloadConfig(Label label) throws IOException, InterruptedException, ReactorException {
 		LOGGER.info("Reloading configuration for " + label.toString() + "...");
 
 		String ip = System.getenv("OPENSHIFT_INTERNAL_IP");
@@ -515,24 +476,46 @@ public final class OpenShiftCloud extends Cloud {
 		String password = System.getenv("JENKINS_PASSWORD");
 
 		String name = label.toString();
-		// if (name.endsWith("-build")) {
-		// name = name.substring(0, name.indexOf("-build"));
-		// }
 
-		URL url = new URL("http://" + ip + ":" + port + "/job/" + name
-				+ "/config.xml");
-		HttpURLConnection connection = createConnection(url, username, password);
-		connection.setRequestMethod("GET");
-		String get = readToString(connection.getInputStream());
-		LOGGER.info("Reload config " + get);
+		URL url = new URL("http://" + ip + ":" + port + "/job/" + name + "/config.xml");
+		HttpURLConnection connection = null;
+        String config;
 
-		connection = createConnection(url, username, password);
-		connection.setRequestMethod("POST");
-		connection.setDoOutput(true);
-		writeTo(get.getBytes(), connection.getOutputStream());
-		String result = readToString(connection.getInputStream());
-		LOGGER.info("Reload result " + result);
-	}
+        try {
+            LOGGER.info("Retrieving config XML from " + url.toString());
+
+            connection = createConnection(url, username, password);
+            connection.setRequestMethod("GET");
+            config = readToString(connection.getInputStream());
+
+            if (config == null || config.trim().length() == 0) {
+                throw new RuntimeException("Received empty config XML from API call to " + url.toString());
+            }
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+
+        try {
+            LOGGER.info("Reloading config from XML: " + config);
+
+            connection = createConnection(url, username, password);
+            connection.setRequestMethod("POST");
+            connection.setDoOutput(true);
+
+            writeTo(config.getBytes(), connection.getOutputStream());
+            String result = readToString(connection.getInputStream());
+            int code = connection.getResponseCode();
+
+            if (code != HttpURLConnection.HTTP_OK) {
+                throw new RuntimeException("Received an invalid response (" + code + ") while updating config XML. " +
+                        "Server response: " + result);
+            }
+
+            LOGGER.info("Config reload result: " + result);
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
 
 	protected void writeTo(byte[] data, OutputStream outputStream)
 			throws IOException {
@@ -544,10 +527,6 @@ public final class OpenShiftCloud extends Cloud {
 	protected HttpURLConnection createConnection(URL url, String username,
 			String password) throws IOException {
 		HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-		// HttpsURLConnection httpsConnection = (HttpsURLConnection) service;
-		// httpsConnection.setHostnameVerifier(new NoopHostnameVerifier());
-		// setPermissiveSSLSocketFactory(httpsConnection);
 
 		connection.setUseCaches(false);
 		connection.setDoInput(true);
