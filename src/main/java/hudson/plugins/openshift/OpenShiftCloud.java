@@ -73,6 +73,7 @@ public final class OpenShiftCloud extends Cloud {
 	public static final String DEFAULT_LABEL = "raw-build";
 	public static final long DEFAULT_TIMEOUT = 300000;
 	private static final int FAILURE_LIMIT = 5;
+	private static final int RETRY_DELAY = 5000;
 	
 	private String username;
 	private String password;
@@ -331,9 +332,6 @@ public final class OpenShiftCloud extends Cloud {
 		if (slaveIdleTimeToLive == 0)
 			slaveIdleTimeToLive = 15;
 
-		
-	
-
 		String builderType = "diy-0.1";
 		String builderName = "raw" + APP_NAME_BUILDER_EXTENSION;
 		String builderSize = OpenShiftCloud.get().getDefaultBuilderSize();
@@ -404,6 +402,8 @@ public final class OpenShiftCloud extends Cloud {
 				++failures;
 				
 				LOGGER.warning("Caught " + e + ". Will retry " + (FAILURE_LIMIT - failures) + " more times before cancelling build.");
+				
+				try { Thread.sleep(RETRY_DELAY); } catch (Exception e1){}
 			} 
 		}
 		
@@ -504,7 +504,10 @@ public final class OpenShiftCloud extends Cloud {
 
             writeTo(config.getBytes(), connection.getOutputStream());
             String result = readToString(connection.getInputStream());
+            
             int code = connection.getResponseCode();
+            
+            LOGGER.info("Reload ResponseCode: " + code);
 
             if (code != HttpURLConnection.HTTP_OK) {
                 throw new RuntimeException("Received an invalid response (" + code + ") while updating config XML. " +
