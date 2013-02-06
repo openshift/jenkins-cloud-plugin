@@ -17,9 +17,13 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.Reader;
+import java.io.StringWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLConnection;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -74,6 +78,14 @@ public final class OpenShiftCloud extends Cloud {
 	public static final long DEFAULT_TIMEOUT = 300000;
 	private static final int FAILURE_LIMIT = 5;
 	private static final int RETRY_DELAY = 5000;
+	
+	private static final int DEFAULT_CONNECT_TIMEOUT = 10 * 1024;
+	private static final int DEFAULT_READ_TIMEOUT = 60 * 1024;
+	private static final String SYSPROP_OPENSHIFT_CONNECT_TIMEOUT = "com.openshift.httpclient.timeout";
+	private static final String SYSPROP_DEFAULT_CONNECT_TIMEOUT = "sun.net.client.defaultConnectTimeout";
+	private static final String SYSPROP_DEFAULT_READ_TIMEOUT = "sun.net.client.defaultReadTimeout";
+	private static final String SYSPROP_ENABLE_SNI_EXTENSION = "jsse.enableSNIExtension";
+
 	
 	private String username;
 	private String password;
@@ -554,9 +566,11 @@ public final class OpenShiftCloud extends Cloud {
 
 		connection.setUseCaches(false);
 		connection.setDoInput(true);
-		connection.setAllowUserInteraction(true);
+		connection.setAllowUserInteraction(false);
 		connection.setRequestProperty("Content-Type", "text/plain");
 		connection.setInstanceFollowRedirects(true);
+		setConnectTimeout(connection);
+		setReadTimeout(connection);
 
 		LOGGER.info("Using credentials " + username + ":" + password);
 
@@ -566,6 +580,33 @@ public final class OpenShiftCloud extends Cloud {
 		connection.setRequestProperty("Authorization", basicAuth);
 
 		return connection;
+	}
+	
+	private void setConnectTimeout(URLConnection connection) {
+		int timeout = getSystemPropertyInteger(SYSPROP_OPENSHIFT_CONNECT_TIMEOUT);
+		if (timeout > -1) {
+			connection.setConnectTimeout(timeout);
+			return;
+		}
+		timeout = getSystemPropertyInteger(SYSPROP_DEFAULT_CONNECT_TIMEOUT);
+		if (timeout == -1) {
+			connection.setConnectTimeout(DEFAULT_CONNECT_TIMEOUT);
+		}
+	}
+
+	private void setReadTimeout(URLConnection connection) {
+		int timeout = getSystemPropertyInteger(SYSPROP_DEFAULT_READ_TIMEOUT);
+		if (timeout == -1) {
+			connection.setReadTimeout(DEFAULT_READ_TIMEOUT);
+		}
+	}
+	
+	private int getSystemPropertyInteger(String key) {
+		try {
+			return Integer.parseInt(System.getProperty(key));
+		} catch (NumberFormatException e) {
+			return -1;
+		}
 	}
 
 	private void setPermissiveSSLSocketFactory(HttpsURLConnection service) {
@@ -584,13 +625,25 @@ public final class OpenShiftCloud extends Cloud {
 		}
 	}
 
-	private String readToString(InputStream inputStream) throws IOException {
+	public static String readToString(InputStream inputStream) throws IOException {
 		if (inputStream == null) {
 			return null;
 		}
-		byte[] data = new byte[inputStream.available()];
-		inputStream.read(data);
-		return new String(data);
+		return readToString(new InputStreamReader(inputStream));
+	}
+
+	public static String readToString(Reader reader) throws IOException {
+		if (reader == null) {
+			return null;
+		}
+		BufferedReader bufferedReader = new BufferedReader(reader);
+		StringWriter writer = new StringWriter();
+		String line = null;
+		while ((line = bufferedReader.readLine()) != null) {
+			writer.write(line);
+			writer.write('\n');
+		}
+		return writer.toString();
 	}
 
 	protected boolean isBuildRunning(Label label) {
