@@ -401,7 +401,9 @@ public final class OpenShiftCloud extends Cloud {
 			} catch (Exception e) {
 				++failures;
 				
-				LOGGER.warning("Caught " + e + ". Will retry " + (FAILURE_LIMIT - failures) + " more times before cancelling build.");
+				LOGGER.warning("Caught " + e + ". Will retry " + (FAILURE_LIMIT - failures) + " more times before canceling build.");
+				
+				e.printStackTrace();
 				
 				try { Thread.sleep(RETRY_DELAY); } catch (Exception e1){}
 			} 
@@ -479,7 +481,7 @@ public final class OpenShiftCloud extends Cloud {
 
 		URL url = new URL("http://" + ip + ":" + port + "/job/" + name + "/config.xml");
 		HttpURLConnection connection = null;
-        String config;
+        String config = null;
 
         try {
             LOGGER.info("Retrieving config XML from " + url.toString());
@@ -491,6 +493,17 @@ public final class OpenShiftCloud extends Cloud {
             if (config == null || config.trim().length() == 0) {
                 throw new RuntimeException("Received empty config XML from API call to " + url.toString());
             }
+            
+            config = config.trim();
+        
+        } catch (IOException e) {
+        	LOGGER.warning("Reload GET:");
+        	if (config != null){
+				for (char c : config.toCharArray()) {
+					System.out.printf("U+%04x ", (int) c);
+				}
+        	}
+			throw e;
         } finally {
             if (connection != null) connection.disconnect();
         }
@@ -515,6 +528,14 @@ public final class OpenShiftCloud extends Cloud {
             }
 
             LOGGER.info("Config reload result: " + result);
+        } catch (IOException e) {
+        	LOGGER.warning("Reload POST:");
+        	if (config != null){
+				for (char c : config.toCharArray()) {
+					System.out.printf("U+%04x ", (int) c);
+				}
+        	}
+			throw e;
         } finally {
             if (connection != null) connection.disconnect();
         }
@@ -651,9 +672,9 @@ public final class OpenShiftCloud extends Cloud {
 
 			if (item != null) {
 				Queue queue = Queue.getInstance();
-				boolean cancelled = queue.cancel(item);
+				boolean canceled = queue.cancel(item);
 				LOGGER.warning("Build " + label + " " + builderName
-						+ " has been cancelled");
+						+ " has been canceled");
 			}
 		} catch (Exception e) {
 			LOGGER.log(Level.SEVERE,
