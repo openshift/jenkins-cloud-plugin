@@ -220,11 +220,9 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 	}
 
     public void provision() throws Exception {
+    	
         // Create a new application of the right type
         createApp();
-
-        // Now stop the application to free up resources
-        //stopApp();
 
         // Force a connection to establish the UUID
         connect(true);
@@ -253,19 +251,6 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 		app.stop();
 
     }
-
- /*   private void stopApp() throws IOException {
-        LOGGER.info("Slave stopping application...");
-        
-        try {
-	        IOpenShiftService service = OpenShiftCloud.get().getOpenShiftService();
-	        IUser user = OpenShiftCloud.get().getIUser();
-	        ICartridge cartridge = user.getCartridgeByName(framework);
-	        IApplication app = service.stopApplication(name, cartridge, user);
-    	} catch (Exception e){
-    		e.printStackTrace();
-    	}
-    } */
 
     public String getUuid() {
         return uuid;

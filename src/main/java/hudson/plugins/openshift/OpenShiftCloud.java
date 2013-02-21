@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -78,7 +79,7 @@ public final class OpenShiftCloud extends Cloud {
 	public static final long DEFAULT_TIMEOUT = 300000;
 	private static final int FAILURE_LIMIT = 5;
 	private static final int RETRY_DELAY = 5000;
-	
+
 	private static final int DEFAULT_CONNECT_TIMEOUT = 10 * 1024;
 	private static final int DEFAULT_READ_TIMEOUT = 60 * 1024;
 	private static final String SYSPROP_OPENSHIFT_CONNECT_TIMEOUT = "com.openshift.httpclient.timeout";
@@ -86,7 +87,6 @@ public final class OpenShiftCloud extends Cloud {
 	private static final String SYSPROP_DEFAULT_READ_TIMEOUT = "sun.net.client.defaultReadTimeout";
 	private static final String SYSPROP_ENABLE_SNI_EXTENSION = "jsse.enableSNIExtension";
 
-	
 	private String username;
 	private String password;
 	private String authKey;
@@ -103,7 +103,7 @@ public final class OpenShiftCloud extends Cloud {
 	private String brokerAuthKey;
 	private String brokerAuthIV;
 	private transient IOpenShiftConnection service;
-	
+
 	static {
 		javax.net.ssl.HttpsURLConnection
 				.setDefaultHostnameVerifier(new javax.net.ssl.HostnameVerifier() {
@@ -122,7 +122,8 @@ public final class OpenShiftCloud extends Cloud {
 	@DataBoundConstructor
 	public OpenShiftCloud(String username, String password, String brokerHost,
 			String brokerPort, String proxyHost, int proxyPort,
-			boolean ignoreBrokerCertCheck, int slaveIdleTimeToLive, int maxSlaveIdleTimeToLive, String defaultBuilderSize)
+			boolean ignoreBrokerCertCheck, int slaveIdleTimeToLive,
+			int maxSlaveIdleTimeToLive, String defaultBuilderSize)
 			throws IOException {
 		super("OpenShift Cloud");
 		this.username = username;
@@ -132,10 +133,11 @@ public final class OpenShiftCloud extends Cloud {
 		this.proxyHost = proxyHost;
 		this.proxyPort = proxyPort;
 		this.maxSlaveIdleTimeToLive = maxSlaveIdleTimeToLive;
-		this.slaveIdleTimeToLive = limitSlaveIdleTimeToLive(slaveIdleTimeToLive, maxSlaveIdleTimeToLive);
+		this.slaveIdleTimeToLive = limitSlaveIdleTimeToLive(
+				slaveIdleTimeToLive, maxSlaveIdleTimeToLive);
 		this.defaultBuilderSize = defaultBuilderSize;
 		this.ignoreBrokerCertCheck = ignoreBrokerCertCheck;
-		
+
 	}
 
 	public IOpenShiftConnection getOpenShiftConnection() throws IOException {
@@ -166,14 +168,9 @@ public final class OpenShiftCloud extends Cloud {
 					LOGGER.info("Initiating Java Client Service - Configured for OpenShift Server "
 							+ url);
 				}
-				
+
 				service = new OpenShiftConnectionFactory().getConnection(
-						username,
-						username,
-						password,
-						authKey,
-						authIV,
-						url);
+						username, username, password, authKey, authIV, url);
 
 				service.setEnableSSLCertChecks(!ignoreBrokerCertCheck);
 
@@ -264,11 +261,11 @@ public final class OpenShiftCloud extends Cloud {
 	public int getProxyPort() {
 		return proxyPort;
 	}
-	
+
 	public int getSlaveIdleTimeToLive() {
 		return slaveIdleTimeToLive;
 	}
-	
+
 	public int getMaxSlaveIdleTimeToLive() {
 		return maxSlaveIdleTimeToLive;
 	}
@@ -299,8 +296,7 @@ public final class OpenShiftCloud extends Cloud {
 	 * 
 	 * @return whether a new builder should be provisioned
 	 */
-	protected boolean hasCapacity(String name, IUser user)
-			throws IOException {
+	protected boolean hasCapacity(String name, IUser user) throws IOException {
 		LOGGER.info("Checking capacity");
 		long maxGears = user.getMaxGears();
 		long consumedGears = user.getConsumedGears();
@@ -317,9 +313,10 @@ public final class OpenShiftCloud extends Cloud {
 		return true;
 	}
 
-	protected boolean builderExists(String name, IUser userInfo) 
+	protected boolean builderExists(String name, IUser userInfo)
 			throws IOException, OpenShiftException {
-		List<IApplication> applications = userInfo.getDefaultDomain().getApplications();
+		List<IApplication> applications = userInfo.getDefaultDomain()
+				.getApplications();
 		LOGGER.info("Capacity remaining - checking for existing type...");
 		for (@SuppressWarnings("unchecked")
 		Iterator<IApplication> i = applications.iterator(); i.hasNext();) {
@@ -335,12 +332,16 @@ public final class OpenShiftCloud extends Cloud {
 	}
 
 	public Collection<PlannedNode> provision(Label label, int excessWorkload) {
-		
+
+		System.setProperty("com.openshift.httpclient.timeout", "300000");
+		System.setProperty("sun.net.client.defaultConnectTimeout", "300000");
+		System.setProperty("sun.net.client.defaultReadTimeout", "300000");
+
 		service = null;
-		
+
 		LOGGER.info("Provisioning new node for workload = " + excessWorkload
 				+ " and label = " + label);
-		
+
 		if (slaveIdleTimeToLive == 0)
 			slaveIdleTimeToLive = 15;
 
@@ -393,40 +394,46 @@ public final class OpenShiftCloud extends Cloud {
 
 			throw new UnsupportedOperationException("No Label");
 		}
-		
+
 		Queue.Item item = getItem(builderName, labelStr);
-		
+
 		List<PlannedNode> result = new ArrayList<PlannedNode>();
-		
+
 		int failures = 0;
 		while (failures < FAILURE_LIMIT) {
 			try {
-				provisionSlave(result, builderType, builderName, builderSize, label, labelStr, builderTimeout, excessWorkload);
-				
+				provisionSlave(result, builderType, builderName, builderSize,
+						label, labelStr, builderTimeout, excessWorkload);
+
 				LOGGER.info("Provisioned " + result.size() + " new nodes");
 
 				if (result.size() == 0) {
 					cancelItem(item, builderName, labelStr);
 				}
-				
+
 				return result;
 			} catch (Exception e) {
 				++failures;
-				
-				LOGGER.warning("Caught " + e + ". Will retry " + (FAILURE_LIMIT - failures) + " more times before canceling build.");
-				
+
+				LOGGER.warning("Caught " + e + ". Will retry "
+						+ (FAILURE_LIMIT - failures)
+						+ " more times before canceling build.");
+
 				e.printStackTrace();
-				
-				try { Thread.sleep(RETRY_DELAY); } catch (Exception e1){}
-			} 
+
+				try {
+					Thread.sleep(RETRY_DELAY);
+				} catch (Exception e1) {
+				}
+			}
 		}
-		
+
 		LOGGER.warning("Cancelling build due to earlier exceptions");
 		this.cancelItem(item, builderName, labelStr);
-		
+
 		return result;
 	}
-	
+
 	protected void provisionSlave(List<PlannedNode> result, String builderType, String builderName, String builderSize, Label label, String labelStr, long builderTimeout, int excessWorkload)
 		throws Exception
 	{
@@ -457,31 +464,31 @@ public final class OpenShiftCloud extends Cloud {
 				LOGGER.info("Not provisioning new builder...");
 			} else {
 				reloadConfig(label);
-				PlannedNode node = new PlannedNode(plannedNodeName,
-						Computer.threadPoolForRemoting
-								.submit(new Callable<Node>() {
-									public Node call() throws Exception {
-										// Provision a new slave builder
-										OpenShiftSlave slave = new OpenShiftSlave(
-												name, framework, size,
-												plannedNodeName, timeout,
-												executors, slaveIdleTimeToLive);
+				
+				// Provision a new slave builder
+				final OpenShiftSlave newSlave = new OpenShiftSlave(
+						name, framework, size,
+						plannedNodeName, timeout,
+						executors, slaveIdleTimeToLive);
 
-									
-										slave.provision();
-										Hudson.getInstance().addNode(
-												slave);
-										return slave;
-								
-									}
-								}), executors);
-
+				newSlave.provision();
+				
+				Future<Node> future = Computer.threadPoolForRemoting.submit(new Callable<Node>() {
+					public Node call() throws Exception {
+						Hudson.getInstance().addNode(newSlave);
+						return newSlave;
+					}
+				});
+				
+				PlannedNode node = new PlannedNode(plannedNodeName, future, executors);
 				result.add(node);
+			
 			}
 		}
 	}
 
-	protected void reloadConfig(Label label) throws IOException, InterruptedException, ReactorException {
+	protected void reloadConfig(Label label) throws IOException,
+			InterruptedException, ReactorException {
 		LOGGER.info("Reloading configuration for " + label.toString() + "...");
 
 		String ip = System.getenv("OPENSHIFT_INTERNAL_IP");
@@ -491,67 +498,73 @@ public final class OpenShiftCloud extends Cloud {
 
 		String name = label.toString();
 
-		URL url = new URL("http://" + ip + ":" + port + "/job/" + name + "/config.xml");
+		URL url = new URL("http://" + ip + ":" + port + "/job/" + name
+				+ "/config.xml");
 		HttpURLConnection connection = null;
-        String config = null;
+		String config = null;
 
-        try {
-            LOGGER.info("Retrieving config XML from " + url.toString());
+		try {
+			LOGGER.info("Retrieving config XML from " + url.toString());
 
-            connection = createConnection(url, username, password);
-            connection.setRequestMethod("GET");
-            config = readToString(connection.getInputStream());
+			connection = createConnection(url, username, password);
+			connection.setRequestMethod("GET");
+			config = readToString(connection.getInputStream());
 
-            if (config == null || config.trim().length() == 0) {
-                throw new RuntimeException("Received empty config XML from API call to " + url.toString());
-            }
-            
-            config = config.trim();
-        
-        } catch (IOException e) {
-        	LOGGER.warning("Reload GET:");
-        	if (config != null){
+			if (config == null || config.trim().length() == 0) {
+				throw new RuntimeException(
+						"Received empty config XML from API call to "
+								+ url.toString());
+			}
+
+			config = config.trim();
+
+		} catch (IOException e) {
+			LOGGER.warning("Reload GET:");
+			if (config != null) {
 				for (char c : config.toCharArray()) {
 					System.out.printf("U+%04x ", (int) c);
 				}
-        	}
+			}
 			throw e;
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
+		} finally {
+			if (connection != null)
+				connection.disconnect();
+		}
 
-        try {
-            LOGGER.info("Reloading config from XML: " + config);
+		try {
+			LOGGER.info("Reloading config from XML: " + config);
 
-            connection = createConnection(url, username, password);
-            connection.setRequestMethod("POST");
-            connection.setDoOutput(true);
+			connection = createConnection(url, username, password);
+			connection.setRequestMethod("POST");
+			connection.setDoOutput(true);
 
-            writeTo(config.getBytes(), connection.getOutputStream());
-            String result = readToString(connection.getInputStream());
-            
-            int code = connection.getResponseCode();
-            
-            LOGGER.info("Reload ResponseCode: " + code);
+			writeTo(config.getBytes(), connection.getOutputStream());
+			String result = readToString(connection.getInputStream());
 
-            if (code != HttpURLConnection.HTTP_OK) {
-                throw new RuntimeException("Received an invalid response (" + code + ") while updating config XML. " +
-                        "Server response: " + result);
-            }
+			int code = connection.getResponseCode();
 
-            LOGGER.info("Config reload result: " + result);
-        } catch (IOException e) {
-        	LOGGER.warning("Reload POST:");
-        	if (config != null){
+			LOGGER.info("Reload ResponseCode: " + code);
+
+			if (code != HttpURLConnection.HTTP_OK) {
+				throw new RuntimeException("Received an invalid response ("
+						+ code + ") while updating config XML. "
+						+ "Server response: " + result);
+			}
+
+			LOGGER.info("Config reload result: " + result);
+		} catch (IOException e) {
+			LOGGER.warning("Reload POST:");
+			if (config != null) {
 				for (char c : config.toCharArray()) {
 					System.out.printf("U+%04x ", (int) c);
 				}
-        	}
+			}
 			throw e;
-        } finally {
-            if (connection != null) connection.disconnect();
-        }
-    }
+		} finally {
+			if (connection != null)
+				connection.disconnect();
+		}
+	}
 
 	protected void writeTo(byte[] data, OutputStream outputStream)
 			throws IOException {
@@ -581,7 +594,7 @@ public final class OpenShiftCloud extends Cloud {
 
 		return connection;
 	}
-	
+
 	private void setConnectTimeout(URLConnection connection) {
 		int timeout = getSystemPropertyInteger(SYSPROP_OPENSHIFT_CONNECT_TIMEOUT);
 		if (timeout > -1) {
@@ -600,7 +613,7 @@ public final class OpenShiftCloud extends Cloud {
 			connection.setReadTimeout(DEFAULT_READ_TIMEOUT);
 		}
 	}
-	
+
 	private int getSystemPropertyInteger(String key) {
 		try {
 			return Integer.parseInt(System.getProperty(key));
@@ -616,8 +629,7 @@ public final class OpenShiftCloud extends Cloud {
 					new TrustManager[] { new PermissiveTrustManager() },
 					new SecureRandom());
 			SSLSocketFactory socketFactory = sslContext.getSocketFactory();
-			((HttpsURLConnection) service)
-					.setSSLSocketFactory(socketFactory);
+			((HttpsURLConnection) service).setSSLSocketFactory(socketFactory);
 		} catch (KeyManagementException e) {
 			// ignore
 		} catch (NoSuchAlgorithmException e) {
@@ -625,7 +637,8 @@ public final class OpenShiftCloud extends Cloud {
 		}
 	}
 
-	public static String readToString(InputStream inputStream) throws IOException {
+	public static String readToString(InputStream inputStream)
+			throws IOException {
 		if (inputStream == null) {
 			return null;
 		}
@@ -660,22 +673,22 @@ public final class OpenShiftCloud extends Cloud {
 
 	protected OpenShiftSlave getSlave(List<OpenShiftSlave> slaves,
 			String builderName) {
-		
-		if (slaves != null){
+
+		if (slaves != null) {
 			for (OpenShiftSlave slave : slaves) {
 				LOGGER.info("slaveExists " + slave.getDisplayName() + " "
 						+ builderName);
 				if (slave.getDisplayName().equals(builderName))
 					return slave;
 			}
-		} 
+		}
 		return null;
 	}
 
 	protected void cancelBuild(String builderName) {
 		cancelBuild(builderName, null);
 	}
-	
+
 	protected Queue.Item getItem(String builderName, String label) {
 		try {
 			Job job = null;
@@ -709,7 +722,7 @@ public final class OpenShiftCloud extends Cloud {
 			if (existingNode != null && existingNode instanceof OpenShiftSlave) {
 				((OpenShiftSlave) existingNode).terminate();
 			}
-			
+
 			Queue.Item item = getItem(builderName, label);
 
 			cancelItem(item, builderName, label);
@@ -718,7 +731,7 @@ public final class OpenShiftCloud extends Cloud {
 					"Exception caught trying to terminate slave", e);
 		}
 	}
-	
+
 	protected void cancelItem(Queue.Item item, String builderName, String label) {
 		LOGGER.info("Cancelling Item ");
 		try {
@@ -734,19 +747,22 @@ public final class OpenShiftCloud extends Cloud {
 					"Exception caught trying to terminate slave", e);
 		}
 	}
-	
-	protected int limitSlaveIdleTimeToLive(int slaveTimeToLive, int maxSlaveIdleTimeToLive) {
-		
+
+	protected int limitSlaveIdleTimeToLive(int slaveTimeToLive,
+			int maxSlaveIdleTimeToLive) {
+
 		if (slaveTimeToLive == 0 || maxSlaveIdleTimeToLive == 0) {
 			return 15;
 		}
-		
-		if (maxSlaveIdleTimeToLive > 0 && ( slaveTimeToLive < 0 || slaveTimeToLive > maxSlaveIdleTimeToLive) ) {
-			LOGGER.warning("Slave Idle Time to Live  " + slaveTimeToLive + " is greater than the max allowed " + maxSlaveIdleTimeToLive 
-					+ ". Using max.");
+
+		if (maxSlaveIdleTimeToLive > 0
+				&& (slaveTimeToLive < 0 || slaveTimeToLive > maxSlaveIdleTimeToLive)) {
+			LOGGER.warning("Slave Idle Time to Live  " + slaveTimeToLive
+					+ " is greater than the max allowed "
+					+ maxSlaveIdleTimeToLive + ". Using max.");
 			return maxSlaveIdleTimeToLive;
 		}
-		
+
 		return slaveTimeToLive;
 	}
 
@@ -809,11 +825,11 @@ public final class OpenShiftCloud extends Cloud {
 		public int getProxyPort() {
 			return proxyPort;
 		}
-		
+
 		public int getSlaveIdleTimeToLive() {
 			return slaveIdleTimeToLive;
 		}
-		
+
 		public int getMaxSlaveIdleTimeToLive() {
 			return maxSlaveIdleTimeToLive;
 		}
@@ -835,10 +851,12 @@ public final class OpenShiftCloud extends Cloud {
 	}
 
 	@SuppressWarnings("unchecked")
-	protected List<OpenShiftSlave> getSlaves() throws IOException, OpenShiftException {
+	protected List<OpenShiftSlave> getSlaves() throws IOException,
+			OpenShiftException {
 
-		List<IApplication> appInfos = this.getOpenShiftConnection().getUser().getDefaultDomain().getApplications();
-				
+		List<IApplication> appInfos = this.getOpenShiftConnection().getUser()
+				.getDefaultDomain().getApplications();
+
 		List<OpenShiftSlave> slaveList = new ArrayList<OpenShiftSlave>();
 
 		for (Iterator<IApplication> i = appInfos.iterator(); i.hasNext();) {
@@ -854,7 +872,8 @@ public final class OpenShiftCloud extends Cloud {
 
 						slave = new OpenShiftSlave(appName, framework,
 								OpenShiftCloud.get().getDefaultBuilderSize(),
-								DEFAULT_LABEL, DEFAULT_TIMEOUT, 1, slaveIdleTimeToLive);
+								DEFAULT_LABEL, DEFAULT_TIMEOUT, 1,
+								slaveIdleTimeToLive);
 					} catch (Exception e) {
 						throw new IOException(e);
 					}
