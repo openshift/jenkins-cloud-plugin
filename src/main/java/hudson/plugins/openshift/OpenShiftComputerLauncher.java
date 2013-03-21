@@ -53,6 +53,8 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
 
             // The user for the SSH connection is the application uuid
             String username = computer.getNode().getUuid();
+            LOGGER.info("Connecting via SSH '" + username + "' '" + hostName + "' '" + OpenShiftCloud.get().getPrivateKey()
+                    .getAbsolutePath() + "'");
             final Session sess = jsch.getSession(username, hostName, 22);
             sess.setConfig(config);
             sess.connect();
@@ -130,6 +132,7 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
             logger.flush();
         }
         catch (JSchException e) {
+        	e.printStackTrace();
             throw new IOException(e);
         }
     }

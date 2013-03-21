@@ -160,7 +160,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 	        if (app == null)
 	        	throw new IOException("Failed to connect/find application " + name);
 	    
-	        uuid = app.getUUID();
+	        uuid = app.getGearGroups().get(0).getGears().get(0).getUuid();
 
 	        LOGGER.info("Established UUID = " + uuid);
         } catch (OpenShiftException e){

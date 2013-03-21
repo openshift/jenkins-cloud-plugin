@@ -455,8 +455,8 @@ public final class OpenShiftCloud extends Cloud {
 			IUser user = this.getOpenShiftConnection().getUser();
 
 			if (slave != null && builderExists(builderName, user)) {
-				LOGGER.info("Slave exists without corresponding builder. Deleting slave");
-				slave.terminate();
+				LOGGER.info("Slave exists. Not provisioning");
+				//slave.terminate();
 				return;
 			}
 
