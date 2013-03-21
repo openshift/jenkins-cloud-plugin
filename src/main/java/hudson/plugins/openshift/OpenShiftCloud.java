@@ -222,18 +222,14 @@ public final class OpenShiftCloud extends Cloud {
 	}
 
 	private String getBrokerAuthKey() throws IOException {
-		if (brokerAuthKey == null) {
-			String homeDir = System.getenv("HOME");
-			brokerAuthKey = fileToString(homeDir + "/.auth/token");
-		}
+		String homeDir = System.getenv("HOME");
+		brokerAuthKey = fileToString(homeDir + "/.auth/token");
 		return brokerAuthKey;
 	}
 
 	private String getBrokerAuthIV() throws IOException {
-		if (brokerAuthIV == null) {
-			String homeDir = System.getenv("HOME");
-			brokerAuthIV = fileToString(homeDir + "/.auth/iv");
-		}
+		String homeDir = System.getenv("HOME");
+		brokerAuthIV = fileToString(homeDir + "/.auth/iv");
 		return brokerAuthIV;
 	}
 
