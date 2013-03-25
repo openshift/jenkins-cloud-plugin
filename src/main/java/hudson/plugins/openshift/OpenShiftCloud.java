@@ -487,8 +487,14 @@ public final class OpenShiftCloud extends Cloud {
 			InterruptedException, ReactorException {
 		LOGGER.info("Reloading configuration for " + label.toString() + "...");
 
-		String ip = System.getenv("OPENSHIFT_INTERNAL_IP");
-		String port = System.getenv("OPENSHIFT_INTERNAL_PORT");
+		String ip = System.getenv("OPENSHIFT_JENKINS_IP");
+        if (ip == null) {
+            ip = System.getenv("OPENSHIFT_INTERNAL_IP");
+        }
+		String port = System.getenv("OPENSHIFT_JENKINS_PORT");
+        if (port == null) {
+            port = System.getenv("OPENSHIFT_INTERNAL_PORT");
+        }
 		String username = System.getenv("JENKINS_USERNAME");
 		String password = System.getenv("JENKINS_PASSWORD");
 
