@@ -54,7 +54,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     @DataBoundConstructor
     public OpenShiftSlave(String name, String framework, String builderSize,
             String label, long builderTimeout, int executors, int slaveIdleTimeToLive) throws FormException, IOException {
-        super(name, "Builder for " + label, framework + "/ci/jenkins", executors, Mode.NORMAL,
+        super(name, "Builder for " + label, "app-root/data/jenkins", executors, Mode.NORMAL,
                 label, new OpenShiftComputerLauncher(),
                 new CloudRetentionStrategy(slaveIdleTimeToLive), Collections
                         .<NodeProperty<?>> emptyList());

@@ -6,6 +6,7 @@ import hudson.remoting.Channel.Listener;
 import hudson.slaves.ComputerLauncher;
 import hudson.slaves.SlaveComputer;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -104,9 +105,17 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
             // Make sure to enable SSH agent forwarding
             logger.println("Executing slave jar to make connection...");
             final Channel slaveChannel = sess.openChannel("exec");
-            ((ChannelExec) slaveChannel)
-                    .setEnv("GIT_SSH",
-                            "/usr/libexec/openshift/cartridges/jenkins-1.4/info/bin/git_ssh_wrapper.sh");
+            String sshWrapperPath;
+            if (new File("/usr/libexec/openshift/cartridges/v2/jenkins/bin/git_ssh_wrapper.sh").exists()) {
+                sshWrapperPath = "/usr/libexec/openshift/cartridges/v2/jenkins/bin/git_ssh_wrapper.sh";
+            }
+            else if (new File("/usr/libexec/openshift/v2/cartridges/jenkins/bin/git_ssh_wrapper.sh").exists()) {
+                sshWrapperPath = "/usr/libexec/openshift/v2/cartridges/jenkins/bin/git_ssh_wrapper.sh";
+            }
+            else {
+                sshWrapperPath = "/usr/libexec/openshift/cartridges/jenkins-1.4/info/bin/git_ssh_wrapper.sh";
+            }
+            ((ChannelExec) slaveChannel).setEnv("GIT_SSH", sshWrapperPath);
             ((ChannelExec) slaveChannel).setAgentForwarding(true);
             ((ChannelExec) slaveChannel)
                     .setCommand("java -jar $OPENSHIFT_DATA_DIR/jenkins/slave.jar");
