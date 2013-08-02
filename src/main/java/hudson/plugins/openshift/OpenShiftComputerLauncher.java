@@ -105,7 +105,7 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
             // Make sure to enable SSH agent forwarding
             logger.println("Executing slave jar to make connection...");
             final Channel slaveChannel = sess.openChannel("exec");
-            String sshWrapperPath = "/usr/libexec/openshift/cartridges/jenkins/bin/git_ssh_wrapper.sh";
+            String sshWrapperPath = "/usr/libexec/openshift/cartridges/v2/jenkins/bin/git_ssh_wrapper.sh";
             ((ChannelExec) slaveChannel).setEnv("GIT_SSH", sshWrapperPath);
             ((ChannelExec) slaveChannel).setAgentForwarding(true);
             ((ChannelExec) slaveChannel)
