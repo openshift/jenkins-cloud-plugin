@@ -24,12 +24,12 @@ import java.util.logging.Logger;
 import org.kohsuke.stapler.DataBoundConstructor;
 
 import com.openshift.client.IApplication;
-import com.openshift.client.ICartridge;
 import com.openshift.client.IDomain;
 import com.openshift.client.IGearProfile;
 import com.openshift.client.IOpenShiftConnection;
 import com.openshift.client.IUser;
 import com.openshift.client.OpenShiftException;
+import com.openshift.client.cartridge.IStandaloneCartridge;
 import com.openshift.client.configuration.DefaultConfiguration;
 import com.openshift.client.configuration.SystemConfiguration;
 import com.openshift.client.configuration.UserConfiguration;
@@ -38,7 +38,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     private static final long serialVersionUID = 8486485671018263774L;
     private static final Logger LOGGER = Logger.getLogger(OpenShiftSlave.class
             .getName());
-    
+
     private String framework;
     private final String builderSize;
     private final long builderTimeout;
@@ -47,7 +47,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     /**
      * The name of the slave should be the 'sanitized version of the framework
      * that is used, removing all '.' and '-' characters (i.e. jbossas70, php53)
-     * 
+     *
      * The framework should be the exact OpenShift framework used (i.e.
      * jbossas-7)
      */
@@ -58,21 +58,12 @@ public class OpenShiftSlave extends AbstractCloudSlave {
                 label, new OpenShiftComputerLauncher(),
                 new CloudRetentionStrategy(slaveIdleTimeToLive), Collections
                         .<NodeProperty<?>> emptyList());
-        
+
         LOGGER.info("Creating slave with " + slaveIdleTimeToLive + "mins time-to-live");
-                   
+
         this.framework = framework;
         this.builderSize = builderSize;
         this.builderTimeout = builderTimeout;
-        
-        mapLegacyFrameworks();
-    }
-    
-    protected void mapLegacyFrameworks(){
-    	if (framework.equals("rack-1.1"))
-    		framework = "ruby-1.8";
-    	else if (framework.equals("wsgi-3.2"))
-    		framework = "python-2.6";
     }
 
     @SuppressWarnings("unchecked")
@@ -94,25 +85,25 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         LOGGER.info("Terminating OpenShift application...");
         terminateApp();
     }
-    
-    protected ICartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {
-    	List<ICartridge> cartridges = connection.getStandaloneCartridges();
-    	Iterator<ICartridge> iterator = cartridges.iterator();
-    	while (iterator.hasNext()){
-    		ICartridge cartridge = iterator.next();
-    		if (cartridge.getName().equals(framework))
-    			return cartridge;
-    	}
-    	
-    	throw new OpenShiftException("Cartridge for " + framework + " not found");
+
+    protected IStandaloneCartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {
+        List<IStandaloneCartridge> cartridges = connection.getStandaloneCartridges();
+        Iterator<IStandaloneCartridge> iterator = cartridges.iterator();
+        while (iterator.hasNext()) {
+            IStandaloneCartridge cartridge = iterator.next();
+            if (cartridge.getName().equals(framework))
+                return cartridge;
+        }
+
+        throw new OpenShiftException("Cartridge for " + framework + " not found");
     }
 
     private void terminateApp() {
-    	
-    	try {
+
+        try {
 	        IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
 	        IUser user = connection.getUser();
-	        
+
 	        user.getDefaultDomain().getApplicationByName(name).destroy();
     	} catch (Exception e){
     		LOGGER.warning("Unable to terminate application");
@@ -137,12 +128,12 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 	    	IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
 	        IApplication app = user.getDefaultDomain().getApplicationByName(name);
 	        String url = app.getApplicationUrl();
-	        
+
 	        if (url.indexOf("//") != -1)
 	        	url = url.substring(url.indexOf("//") + 2);
-	    
+
 	        url = url.replace("/", "");
-	        	
+
 	        return url;
     	} catch (OpenShiftException e) {
     		throw new IOException("Unable to find application url for " + name, e);
@@ -156,17 +147,18 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 	        // Force a refresh of the user info to get the application UUID
 	        IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
 	        IApplication app = user.getDefaultDomain().getApplicationByName(name);
-	        
+
 	        if (app == null)
 	        	throw new IOException("Failed to connect/find application " + name);
-	    
-	        uuid = app.getGearGroups().get(0).getGears().get(0).getUuid();
+
+            uuid = app.getGearGroups().iterator().next().getGears().iterator().next().getId();
 
 	        LOGGER.info("Established UUID = " + uuid);
-        } catch (OpenShiftException e){
-        	throw new IOException("Unable to connect to application " + name, e);
         }
-        
+        catch (OpenShiftException e) {
+            throw new IOException("Unable to connect to application " + name, e);
+        }
+
         // Sleep for 5 seconds for DNS to propagate to minimize cache penalties
         if (delayDNS) {
             try {
@@ -182,7 +174,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         // Wait until DNS is resolvable
         while (isBuildRunning() && (builderTimeout == -1 || currentTime - startTime < builderTimeout)) {
             try {
-            	String hostname = getHostName();
+                String hostname = getHostName();
                 LOGGER.info("Checking to see if slave DNS for " + hostname + " is resolvable ...");
                 InetAddress address = InetAddress.getByName(hostname);
                 LOGGER.info("Slave DNS resolved - " + address);
@@ -199,14 +191,14 @@ public class OpenShiftSlave extends AbstractCloudSlave {
                 currentTime = System.currentTimeMillis();
             }
         }
-        
+
         if (builderTimeout >= 0 && currentTime - startTime >= builderTimeout){
         	LOGGER.warning("Slave DNS not propagated. Timing out.");
         	throw new IOException("Slave DNS not propagated. Timing out.");
         }
     }
-    
-    protected boolean isBuildRunning() {	
+
+    protected boolean isBuildRunning() {
     	boolean running = true;
 		Queue queue = Hudson.getInstance().getQueue();
 		if (queue != null){
@@ -220,7 +212,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 	}
 
     public void provision() throws Exception {
-    	
+
         // Create a new application of the right type
         createApp();
 
@@ -229,11 +221,11 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     }
 
     private void createApp() throws IOException, OpenShiftException {
-    	
+
     	IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
 		IUser user = connection.getUser();
-		ICartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
-	
+		IStandaloneCartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
+
 		IDomain domain = user.getDefaultDomain();
 		List<IGearProfile> gearProfiles = domain.getAvailableGearProfiles();
 		IGearProfile gearProfile = gearProfiles.get(0);
@@ -241,11 +233,11 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 			if (profile.getName().equals(builderSize))
 				gearProfile = profile;
 		}
-		
+
 		LOGGER.info("Creating builder application " + framework + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
-		
+
 		IApplication app = domain.createApplication(name, cartridge, gearProfile);
-		
+
 		// No reason to have app running on builder gear - just need it installed
 		LOGGER.info("Stopping application on builder gear ...");
 		app.stop();

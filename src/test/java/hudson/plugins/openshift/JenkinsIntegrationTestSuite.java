@@ -21,7 +21,7 @@ public class JenkinsIntegrationTestSuite {
 
 	        public boolean verify(String hostname,
 	                javax.net.ssl.SSLSession sslSession) {
-	 
+
 	            if (System.getProperty("proxiedHost") != null && hostname.contains(System.getProperty("proxiedHost"))) {
 	                return true;
 	            }
@@ -29,7 +29,7 @@ public class JenkinsIntegrationTestSuite {
 	        }
 	    });
 	}
-	
+
 	@BeforeClass
 	public static void setUp() throws Exception {
 		InputStream propsStream = null;
@@ -39,10 +39,10 @@ public class JenkinsIntegrationTestSuite {
 			if (propsStream != null){
 				Properties props = new Properties();
 			    props.load(propsStream);
-			    
+
 			    if (props.get("libra_server") != null)
 			    	System.setProperty("libra_server", (String)props.get("libra_server"));
-			    
+
 			    if (props.get("proxyHost") != null)
 			    	System.setProperty("proxyHost", (String)props.get("proxyHost"));
 			    if (props.get("proxyPort") != null)
@@ -51,7 +51,7 @@ public class JenkinsIntegrationTestSuite {
 			    	System.setProperty("proxySet", (String)props.get("proxySet"));
 			    if (props.get("proxiedHost") != null)
 			    	System.setProperty("proxiedHost", (String)props.get("proxiedHost"));
-			    
+
 			    if (props.get("RHLOGIN") != null)
 			    	System.setProperty("RHLOGIN", (String)props.get("RHLOGIN"));
 			    if (props.get("PASSWORD") != null)

@@ -15,10 +15,6 @@
 	<packaging>hpi</packaging>
 
 	<repositories>
-		<!--repository>
-			<id>m.g.o-public</id>
-			<url>http://evgeny-goldin.org/artifactory/repo</url>
-		</repository-->
 	    <repository>
             <id>repo.jenkins-ci.org</id>
             <url>http://repo.jenkins-ci.org/public/</url>
@@ -123,7 +119,7 @@
 		<dependency>
 			<groupId>com.openshift</groupId>
 			<artifactId>openshift-java-client</artifactId>
-			<version>2.1.0-SNAPSHOT</version>
+			<version>2.4.0-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 
