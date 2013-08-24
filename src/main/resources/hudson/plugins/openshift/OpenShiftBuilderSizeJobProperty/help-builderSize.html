@@ -1,21 +1,17 @@
 <div>
-	<p><b>Important:</b> This setting only applies if you set the job <i>Label Expression</i> to match the <i>Project name</i> of your job.</p>
-	<p>
-	Setting the job label is done automatically for you by the OpenShift client tools, but if you are manually setting
-	up a job, you need to set this.  You can set the <i>Label Expression</i> by checking <i>Restrict where this project can be run</i>
-	and then copying your <i>Project name</i> into the text field.  The label is used to lookup the job details, including 
-	the <i>Builder Type</i> and <i>Builder Size</i> when your slave builders are created.
-	</p>
-	
-	<p>
-		The builder size specifies the resources needed for your OpenShift build environment.
-	</p>
-	
-	<p>
-		The resources available in the builder types are as follows:
-		<ul>
-			<li>Small: 512M storage, 250 procs, 300M ram, 100M swap.</li>
-			<li>Medium: 750M storage, 2100 processes, 512M ram, 100M swap</li>
-		</ul>
-	</p>
+  <p><b>Important:</b> This setting only applies if you set the job <i>Label Expression</i> to match the <i>Project name</i> of your job.</p>
+  <p>
+  Setting the job label is done automatically for you by the OpenShift client tools, but if you are manually setting
+  up a job, you need to set this.  You can set the <i>Label Expression</i> by checking <i>Restrict where this project can be run</i>
+  and then copying your <i>Project name</i> into the text field.  The label is used to lookup the job details, including 
+  the <i>Builder Type</i> and <i>Builder Size</i> when your slave builders are created.
+  </p>
+
+  <p>
+    The builder size specifies the resources needed for your OpenShift build environment.
+  </p>
+
+  <p>
+    For OpenShift Online, the resources available in the builder types can be found <a href='https://www.openshift.com/faq/are-there-different-gear-sizes-and-how-much-do-they-cost'>here</a>.
+  </p>
 </div>
