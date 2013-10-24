@@ -396,6 +396,7 @@ public final class OpenShiftCloud extends Cloud {
 		List<PlannedNode> result = new ArrayList<PlannedNode>();
 
 		int failures = 0;
+        Exception exception = null;
 		while (failures < FAILURE_LIMIT) {
 			try {
 				provisionSlave(result, builderType, builderName, builderSize,
@@ -410,12 +411,12 @@ public final class OpenShiftCloud extends Cloud {
 				return result;
 			} catch (Exception e) {
 				++failures;
+                exception = e;
 
 				LOGGER.warning("Caught " + e + ". Will retry "
 						+ (FAILURE_LIMIT - failures)
 						+ " more times before canceling build.");
 
-				e.printStackTrace();
 
 				try {
 					Thread.sleep(RETRY_DELAY);
@@ -425,7 +426,11 @@ public final class OpenShiftCloud extends Cloud {
 		}
 
 		LOGGER.warning("Cancelling build due to earlier exceptions");
-		this.cancelItem(item, builderName, labelStr);
+        if (null != exception) {
+            exception.printStackTrace();
+        }
+
+        this.cancelItem(item, builderName, labelStr);
 
 		return result;
 	}

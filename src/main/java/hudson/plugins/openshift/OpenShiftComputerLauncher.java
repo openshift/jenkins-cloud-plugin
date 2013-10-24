@@ -37,7 +37,7 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
         if (computer.getNode().getUuid() == null) {
             // Don't delay DNS lookup since in this case, Jenkins has probably
             // just been restarted and the slave is still running
-            computer.getNode().connect(false);
+            computer.getNode().connect(true);
         }
 
         LOGGER.info("Checking availability of computer " + computer.getNode());

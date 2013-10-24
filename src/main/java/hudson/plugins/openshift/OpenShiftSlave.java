@@ -124,20 +124,20 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     }
 
     public String getHostName() throws IOException {
-    	try {
-	    	IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
-	        IApplication app = user.getDefaultDomain().getApplicationByName(name);
-	        String url = app.getApplicationUrl();
+        try {
+            IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
+            IApplication app = user.getDefaultDomain().getApplicationByName(name);
+            String url = app.getApplicationUrl();
 
-	        if (url.indexOf("//") != -1)
-	        	url = url.substring(url.indexOf("//") + 2);
+            if (url.indexOf("//") != -1)
+                url = url.substring(url.indexOf("//") + 2);
 
-	        url = url.replace("/", "");
+            url = url.replace("/", "");
 
-	        return url;
-    	} catch (OpenShiftException e) {
-    		throw new IOException("Unable to find application url for " + name, e);
-    	}
+            return url;
+        } catch (OpenShiftException e) {
+            throw new IOException("Unable to find application url for " + name, e);
+        }
     }
 
     public void connect(boolean delayDNS) throws IOException {
@@ -175,13 +175,13 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         while (isBuildRunning() && (builderTimeout == -1 || currentTime - startTime < builderTimeout)) {
             try {
                 String hostname = getHostName();
-                LOGGER.info("Checking to see if slave DNS for " + hostname + " is resolvable ...");
+                LOGGER.info("Checking to see if slave DNS for " + hostname + " is resolvable ... (timeout: " + builderTimeout + "ms)");
                 InetAddress address = InetAddress.getByName(hostname);
                 LOGGER.info("Slave DNS resolved - " + address);
                 break;
             }
             catch (UnknownHostException e) {
-                LOGGER.info("Slave DNS not propagated yet, retrying...");
+                LOGGER.info("Slave DNS not propagated yet, retrying... (remaining: " + (builderTimeout - (currentTime - startTime)) + "ms)");
                 try {
                     Thread.sleep(5000);
                 }
