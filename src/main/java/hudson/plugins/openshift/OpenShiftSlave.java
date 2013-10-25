@@ -47,17 +47,17 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     /**
      * The name of the slave should be the 'sanitized version of the framework
      * that is used, removing all '.' and '-' characters (i.e. jbossas70, php53)
-     *
+     * <p/>
      * The framework should be the exact OpenShift framework used (i.e.
      * jbossas-7)
      */
     @DataBoundConstructor
     public OpenShiftSlave(String name, String framework, String builderSize,
-            String label, long builderTimeout, int executors, int slaveIdleTimeToLive) throws FormException, IOException {
+                          String label, long builderTimeout, int executors, int slaveIdleTimeToLive) throws FormException, IOException {
         super(name, "Builder for " + label, "app-root/data/jenkins", executors, Mode.NORMAL,
                 label, new OpenShiftComputerLauncher(),
                 new CloudRetentionStrategy(slaveIdleTimeToLive), Collections
-                        .<NodeProperty<?>> emptyList());
+                .<NodeProperty<?>>emptyList());
 
         LOGGER.info("Creating slave with " + slaveIdleTimeToLive + "mins time-to-live");
 
@@ -101,14 +101,14 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     private void terminateApp() {
 
         try {
-	        IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
-	        IUser user = connection.getUser();
+            IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
+            IUser user = connection.getUser();
 
-	        user.getDefaultDomain().getApplicationByName(name).destroy();
-    	} catch (Exception e){
-    		LOGGER.warning("Unable to terminate application");
-    		e.printStackTrace();
-    	}
+            user.getDefaultDomain().getApplicationByName(name).destroy();
+        } catch (Exception e) {
+            LOGGER.warning("Unable to terminate application");
+            e.printStackTrace();
+        }
     }
 
     @Extension
@@ -144,18 +144,17 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         LOGGER.info("Connecting to slave " + name + "...");
 
         try {
-	        // Force a refresh of the user info to get the application UUID
-	        IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
-	        IApplication app = user.getDefaultDomain().getApplicationByName(name);
+            // Force a refresh of the user info to get the application UUID
+            IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
+            IApplication app = user.getDefaultDomain().getApplicationByName(name);
 
-	        if (app == null)
-	        	throw new IOException("Failed to connect/find application " + name);
+            if (app == null)
+                throw new IOException("Failed to connect/find application " + name);
 
             uuid = app.getGearGroups().iterator().next().getGears().iterator().next().getId();
 
-	        LOGGER.info("Established UUID = " + uuid);
-        }
-        catch (OpenShiftException e) {
+            LOGGER.info("Established UUID = " + uuid);
+        } catch (OpenShiftException e) {
             throw new IOException("Unable to connect to application " + name, e);
         }
 
@@ -163,8 +162,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         if (delayDNS) {
             try {
                 Thread.sleep(5000);
-            }
-            catch (InterruptedException e) {
+            } catch (InterruptedException e) {
                 // Ignore
             }
         }
@@ -179,37 +177,35 @@ public class OpenShiftSlave extends AbstractCloudSlave {
                 InetAddress address = InetAddress.getByName(hostname);
                 LOGGER.info("Slave DNS resolved - " + address);
                 break;
-            }
-            catch (UnknownHostException e) {
+            } catch (UnknownHostException e) {
                 LOGGER.info("Slave DNS not propagated yet, retrying... (remaining: " + (builderTimeout - (currentTime - startTime)) + "ms)");
                 try {
                     Thread.sleep(5000);
-                }
-                catch (InterruptedException ie) {
+                } catch (InterruptedException ie) {
                     // Ignore interruptions
                 }
                 currentTime = System.currentTimeMillis();
             }
         }
 
-        if (builderTimeout >= 0 && currentTime - startTime >= builderTimeout){
-        	LOGGER.warning("Slave DNS not propagated. Timing out.");
-        	throw new IOException("Slave DNS not propagated. Timing out.");
+        if (builderTimeout >= 0 && currentTime - startTime >= builderTimeout) {
+            LOGGER.warning("Slave DNS not propagated. Timing out.");
+            throw new IOException("Slave DNS not propagated. Timing out.");
         }
     }
 
     protected boolean isBuildRunning() {
-    	boolean running = true;
-		Queue queue = Hudson.getInstance().getQueue();
-		if (queue != null){
-			Queue.Item[] items = queue.getItems();
-			if (items.length == 0)
-				running = false;
-		}
-		
-		return running;
-		   
-	}
+        boolean running = true;
+        Queue queue = Hudson.getInstance().getQueue();
+        if (queue != null) {
+            Queue.Item[] items = queue.getItems();
+            if (items.length == 0)
+                running = false;
+        }
+
+        return running;
+
+    }
 
     public void provision() throws Exception {
 
@@ -222,25 +218,25 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
     private void createApp() throws IOException, OpenShiftException {
 
-    	IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
-		IUser user = connection.getUser();
-		IStandaloneCartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
+        IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
+        IUser user = connection.getUser();
+        IStandaloneCartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
 
-		IDomain domain = user.getDefaultDomain();
-		List<IGearProfile> gearProfiles = domain.getAvailableGearProfiles();
-		IGearProfile gearProfile = gearProfiles.get(0);
-		for (IGearProfile profile : gearProfiles) {
-			if (profile.getName().equals(builderSize))
-				gearProfile = profile;
-		}
+        IDomain domain = user.getDefaultDomain();
+        List<IGearProfile> gearProfiles = domain.getAvailableGearProfiles();
+        IGearProfile gearProfile = gearProfiles.get(0);
+        for (IGearProfile profile : gearProfiles) {
+            if (profile.getName().equals(builderSize))
+                gearProfile = profile;
+        }
 
-		LOGGER.info("Creating builder application " + framework + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
+        LOGGER.info("Creating builder application " + framework + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
 
-		IApplication app = domain.createApplication(name, cartridge, gearProfile);
+        IApplication app = domain.createApplication(name, cartridge, gearProfile);
 
-		// No reason to have app running on builder gear - just need it installed
-		LOGGER.info("Stopping application on builder gear ...");
-		app.stop();
+        // No reason to have app running on builder gear - just need it installed
+        LOGGER.info("Stopping application on builder gear ...");
+        app.stop();
 
     }
 
