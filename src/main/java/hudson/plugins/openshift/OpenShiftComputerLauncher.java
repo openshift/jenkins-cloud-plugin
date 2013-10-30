@@ -37,7 +37,7 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
         if (computer.getNode().getUuid() == null) {
             // Don't delay DNS lookup since in this case, Jenkins has probably
             // just been restarted and the slave is still running
-            computer.getNode().connect(false);
+            computer.getNode().connect(true);
         }
 
         LOGGER.info("Checking availability of computer " + computer.getNode());
@@ -72,7 +72,7 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
                     .append(" && rm -f slave.jar").append(" && wget -q --no-check-certificate https://")
                     .append(getGearDNS(hostName))
                     .append("/jnlpJars/slave.jar");
-            
+
             String command = execCommand.toString();
             LOGGER.info("Exec " + command);
 
@@ -88,13 +88,12 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
                 }
                 try {
                     Thread.sleep(1000);
-                }
-                catch (Exception ee) {
+                } catch (Exception ee) {
                 }
             }
             int result = channel.getExitStatus();
             if (result != 0) {
-            	LOGGER.warning("Download of slave.jar failed.  Return code = " + result);
+                LOGGER.warning("Download of slave.jar failed.  Return code = " + result);
                 throw new IOException(
                         "Download of slave.jar failed.  Return code = "
                                 + result);
@@ -122,7 +121,7 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
                     new Listener() {
 
                         public void onClosed(hudson.remoting.Channel channel,
-                                IOException cause) {
+                                             IOException cause) {
                             slaveChannel.disconnect();
                             sess.disconnect();
                         }
@@ -130,20 +129,19 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
 
             LOGGER.info("Slave connected.");
             logger.flush();
-        }
-        catch (JSchException e) {
-        	e.printStackTrace();
+        } catch (JSchException e) {
+            e.printStackTrace();
             throw new IOException(e);
         }
     }
-    
+
     protected String getGearDNS(String hostname) throws IOException {
     	StringTokenizer tokenizer = new StringTokenizer(hostname, "-");
     	tokenizer.nextToken();
     	String currentDns = tokenizer.nextToken();
     	while (tokenizer.hasMoreTokens()) {
     	    currentDns = currentDns + "-" + tokenizer.nextToken();
-       }
+    	}
     	String gearDns = System.getenv("OPENSHIFT_GEAR_DNS");
     	tokenizer = new StringTokenizer(gearDns, "-");
     	currentDns = tokenizer.nextToken() + "-" + currentDns;
