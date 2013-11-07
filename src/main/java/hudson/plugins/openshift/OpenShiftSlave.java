@@ -87,15 +87,16 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     }
 
     protected IStandaloneCartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {
-        List<IStandaloneCartridge> cartridges = connection.getStandaloneCartridges();
-        Iterator<IStandaloneCartridge> iterator = cartridges.iterator();
-        while (iterator.hasNext()) {
-            IStandaloneCartridge cartridge = iterator.next();
-            if (cartridge.getName().equals(framework))
-                return cartridge;
-        }
+      String targetCartridgeName = framework.replace("redhat-", "");
 
-        throw new OpenShiftException("Cartridge for " + framework + " not found");
+      List<IStandaloneCartridge> cartridges = connection.getStandaloneCartridges();
+      for (IStandaloneCartridge cartridge : cartridges) {
+        if (cartridge.getName().equals(targetCartridgeName)) {
+          return cartridge;
+        }
+      }
+
+      throw new OpenShiftException("Cartridge for " + targetCartridgeName + " not found");
     }
 
     private void terminateApp() {
@@ -217,27 +218,26 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     }
 
     private void createApp() throws IOException, OpenShiftException {
+      IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
+      IUser user = connection.getUser();
+      IStandaloneCartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
 
-        IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
-        IUser user = connection.getUser();
-        IStandaloneCartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
-
-        IDomain domain = user.getDefaultDomain();
-        List<IGearProfile> gearProfiles = domain.getAvailableGearProfiles();
-        IGearProfile gearProfile = gearProfiles.get(0);
-        for (IGearProfile profile : gearProfiles) {
-            if (profile.getName().equals(builderSize))
-                gearProfile = profile;
+      IDomain domain = user.getDefaultDomain();
+      List<IGearProfile> gearProfiles = domain.getAvailableGearProfiles();
+      IGearProfile gearProfile = gearProfiles.get(0);
+      for (IGearProfile profile : gearProfiles) {
+        if (profile.getName().equals(builderSize)) {
+          gearProfile = profile;
         }
+      }
 
-        LOGGER.info("Creating builder application " + framework + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
+      LOGGER.info("Creating builder application " + cartridge.getName() + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
 
-        IApplication app = domain.createApplication(name, cartridge, gearProfile);
+      IApplication app = domain.createApplication(name, cartridge, gearProfile);
 
-        // No reason to have app running on builder gear - just need it installed
-        LOGGER.info("Stopping application on builder gear ...");
-        app.stop();
-
+      // No reason to have app running on builder gear - just need it installed
+      LOGGER.info("Stopping application on builder gear ...");
+      app.stop();
     }
 
     public String getUuid() {
