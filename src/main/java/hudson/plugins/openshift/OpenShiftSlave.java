@@ -15,6 +15,8 @@ import hudson.slaves.NodeProperty;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.apache.commons.lang.StringEscapeUtils;
 
 import com.openshift.client.IApplication;
 import com.openshift.client.IDomain;
@@ -30,6 +33,7 @@ import com.openshift.client.IOpenShiftConnection;
 import com.openshift.client.IUser;
 import com.openshift.client.OpenShiftException;
 import com.openshift.client.cartridge.IStandaloneCartridge;
+import com.openshift.client.cartridge.StandaloneCartridge;
 import com.openshift.client.configuration.DefaultConfiguration;
 import com.openshift.client.configuration.SystemConfiguration;
 import com.openshift.client.configuration.UserConfiguration;
@@ -86,17 +90,25 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         terminateApp();
     }
 
-    protected IStandaloneCartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {
-      String targetCartridgeName = framework.replace("redhat-", "");
-
-      List<IStandaloneCartridge> cartridges = connection.getStandaloneCartridges();
-      for (IStandaloneCartridge cartridge : cartridges) {
-        if (cartridge.getName().equals(targetCartridgeName)) {
-          return cartridge;
+    protected IStandaloneCartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {      
+      if(framework.contains("://")) { 
+        try {            
+          return new StandaloneCartridge(null, new URL(StringEscapeUtils.unescapeXml(framework)));              
+        } catch(MalformedURLException e) {
+            throw new OpenShiftException("Cartridge has an invalid manifest url: "+framework);
         }
-      }
+      } else {
+        String targetCartridgeName = framework.replace("redhat-", "");
 
-      throw new OpenShiftException("Cartridge for " + targetCartridgeName + " not found");
+        List<IStandaloneCartridge> cartridges = connection.getStandaloneCartridges();
+        for (IStandaloneCartridge cartridge : cartridges) {
+          if (cartridge.getName().equals(targetCartridgeName)) {
+            return cartridge;
+          }
+        }
+
+        throw new OpenShiftException("Cartridge for " + targetCartridgeName + " not found");
+      }
     }
 
     private void terminateApp() {
