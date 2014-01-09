@@ -108,7 +108,10 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
             ((ChannelExec) slaveChannel).setEnv("GIT_SSH", sshWrapperPath);
             ((ChannelExec) slaveChannel).setAgentForwarding(true);
             ((ChannelExec) slaveChannel)
-                    .setCommand("java -jar $OPENSHIFT_DATA_DIR/jenkins/slave.jar -jar-cache $OPENSHIFT_DATA_DIR/.jenkins/cache/jars");
+                    .setCommand("java -jar $OPENSHIFT_DATA_DIR/jenkins/slave.jar");
+            // jar-cache parameter needed for jenkins 1.540+
+            //((ChannelExec) slaveChannel)
+            //       .setCommand("java -jar $OPENSHIFT_DATA_DIR/jenkins/slave.jar -jar-cache $OPENSHIFT_DATA_DIR/.jenkins/cache/jars");
             InputStream serverOutput = slaveChannel.getInputStream();
             OutputStream clientInput = slaveChannel.getOutputStream();
             slaveChannel.connect();
