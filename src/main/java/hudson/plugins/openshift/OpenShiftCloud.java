@@ -341,6 +341,7 @@ public final class OpenShiftCloud extends Cloud {
         if (slaveIdleTimeToLive == 0)
             slaveIdleTimeToLive = 15;
 
+        String applicationUUID = null;
         String builderType = "diy-0.1";
         String builderName = "raw" + APP_NAME_BUILDER_EXTENSION;
         String builderSize = OpenShiftCloud.get().getDefaultBuilderSize();
@@ -358,6 +359,10 @@ public final class OpenShiftCloud extends Cloud {
                 OpenShiftBuilderSizeJobProperty osbsjp = ((OpenShiftBuilderSizeJobProperty) job
                         .getProperty(OpenShiftBuilderSizeJobProperty.class));
                 builderSize = osbsjp.builderSize;
+
+                OpenShiftApplicationUUIDJobProperty osappuidjp = ((OpenShiftApplicationUUIDJobProperty) job
+                        .getProperty(OpenShiftApplicationUUIDJobProperty.class));
+                applicationUUID = osappuidjp==null?null:osappuidjp.applicationUUID;
 
                 OpenShiftBuilderTypeJobProperty osbtjp = ((OpenShiftBuilderTypeJobProperty) job
                         .getProperty(OpenShiftBuilderTypeJobProperty.class));
@@ -399,7 +404,7 @@ public final class OpenShiftCloud extends Cloud {
         Exception exception = null;
         while (failures < FAILURE_LIMIT) {
             try {
-                provisionSlave(result, builderType, builderName, builderSize,
+                provisionSlave(result, applicationUUID, builderType, builderName, builderSize,
                         label, labelStr, builderTimeout, excessWorkload);
 
                 LOGGER.info("Provisioned " + result.size() + " new nodes");
@@ -435,14 +440,15 @@ public final class OpenShiftCloud extends Cloud {
         return result;
     }
 
-    protected void provisionSlave(List<PlannedNode> result, String builderType, String builderName, String builderSize, Label label, String labelStr, long builderTimeout, int excessWorkload)
+    protected void provisionSlave(List<PlannedNode> result, String appUUID, String builderType, String builderName, String builderSize, Label label, String labelStr, long builderTimeout, int excessWorkload)
             throws Exception {
         List<OpenShiftSlave> slaves = getSlaves();
         for (OpenShiftSlave slave : slaves) {
             Hudson.getInstance().addNode(slave);
         }
 
-        final String framework = builderType;
+        final String applicationUUID = appUUID;
+        final String type = builderType;
         final String name = builderName;
         final String size = builderSize;
         final String plannedNodeName = labelStr;
@@ -467,7 +473,7 @@ public final class OpenShiftCloud extends Cloud {
 
                 // Provision a new slave builder
                 final OpenShiftSlave newSlave = new OpenShiftSlave(
-                        name, framework, size,
+                        name, applicationUUID, type, size,
                         plannedNodeName, timeout,
                         executors, slaveIdleTimeToLive);
 
@@ -876,7 +882,7 @@ public final class OpenShiftCloud extends Cloud {
                     try {
                         String framework = appInfo.getCartridge().getName();
 
-                        slave = new OpenShiftSlave(appName, framework,
+                        slave = new OpenShiftSlave(appName, appInfo.getUUID(),framework,
                                 OpenShiftCloud.get().getDefaultBuilderSize(),
                                 DEFAULT_LABEL, DEFAULT_TIMEOUT, 1,
                                 slaveIdleTimeToLive);
@@ -915,3 +921,4 @@ public final class OpenShiftCloud extends Cloud {
         }
     }
 }
+

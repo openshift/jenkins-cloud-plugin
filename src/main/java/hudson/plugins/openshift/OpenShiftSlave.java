@@ -43,7 +43,8 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     private static final Logger LOGGER = Logger.getLogger(OpenShiftSlave.class
             .getName());
 
-    private String framework;
+    private String applicationUUID;
+    private String builderType;
     private final String builderSize;
     private final long builderTimeout;
     private String uuid;
@@ -56,7 +57,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
      * jbossas-7)
      */
     @DataBoundConstructor
-    public OpenShiftSlave(String name, String framework, String builderSize,
+    public OpenShiftSlave(String name, String applicationUUID, String builderType, String builderSize,
                           String label, long builderTimeout, int executors, int slaveIdleTimeToLive) throws FormException, IOException {
         super(name, "Builder for " + label, "app-root/data/jenkins", executors, Mode.NORMAL,
                 label, new OpenShiftComputerLauncher(),
@@ -65,7 +66,8 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
         LOGGER.info("Creating slave with " + slaveIdleTimeToLive + "mins time-to-live");
 
-        this.framework = framework;
+        this.applicationUUID = applicationUUID;
+        this.builderType = builderType;
         this.builderSize = builderSize;
         this.builderTimeout = builderTimeout;
     }
@@ -91,26 +93,51 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     }
 
     protected IStandaloneCartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {      
-      if(framework.contains("://")) { 
-        try {            
-          return new StandaloneCartridge(null, new URL(StringEscapeUtils.unescapeXml(framework)));              
-        } catch(MalformedURLException e) {
-            throw new OpenShiftException("Cartridge has an invalid manifest url: "+framework);
-        }
-      } else {
-        String targetCartridgeName = framework.replace("redhat-", "");
-
-        List<IStandaloneCartridge> cartridges = connection.getStandaloneCartridges();
-        for (IStandaloneCartridge cartridge : cartridges) {
-          if (cartridge.getName().equals(targetCartridgeName)) {
-            return cartridge;
-          }
-        }
-
-        throw new OpenShiftException("Cartridge for " + targetCartridgeName + " not found");
-      }
+    
+        if(applicationUUID!=null && !applicationUUID.equals("")) {
+            // new build configs provide the application uuid for cloning
+            IApplication baseApp=getApplicationFromUUID(applicationUUID,connection);
+            if(baseApp==null) {            
+                throw new OpenShiftException("Could not locate application with UUID "+applicationUUID);
+            }
+            if(baseApp.getCartridge().getUrl()!=null) {
+                // downloadable cartridge
+                return new StandaloneCartridge(null, baseApp.getCartridge().getUrl());              
+            } else {
+                // cartridge from repository
+                String cartridgeType=baseApp.getCartridge().getName();
+                List<IStandaloneCartridge> cartridges = connection.getStandaloneCartridges();
+                for (IStandaloneCartridge cartridge : cartridges) {
+                  if (cartridge.getName().equals(cartridgeType)) {
+                    return cartridge;
+                  }
+                }
+                throw new OpenShiftException("Cartridge for " + cartridgeType + " not found");      
+            }
+        } else {
+            // old configs provided the builder type.
+            String targetCartridgeName = builderType.replace("redhat-", "");
+            List<IStandaloneCartridge> cartridges = connection.getStandaloneCartridges();
+            for (IStandaloneCartridge cartridge : cartridges) {
+                if (cartridge.getName().equals(targetCartridgeName)) {
+                    return cartridge;
+                }
+            }
+            throw new OpenShiftException("Cartridge for " + targetCartridgeName + " not found");
+        }        
     }
 
+    private IApplication getApplicationFromUUID(String uuid, IOpenShiftConnection connection) {        
+        for(IDomain domain: connection.getDomains()) {
+            for(IApplication app:domain.getApplications()) {
+                if(app.getUUID().equals(applicationUUID)) {
+                    return app;
+                }
+            }
+        }
+        return null;
+    }
+    
     private void terminateApp() {
 
         try {

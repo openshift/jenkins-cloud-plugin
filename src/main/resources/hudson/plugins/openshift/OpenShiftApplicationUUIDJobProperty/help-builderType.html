@@ -1,0 +1,18 @@
+<div>
+	<p><b>Important:</b> This setting only applies if you set the job <i>Label Expression</i> to match the <i>Project name</i> of your job.</p>
+	<p>
+	Setting the job label is done automatically for you by the OpenShift client tools, but if you are manually setting
+	up a job, you need to set this.  You can set the <i>Label Expression</i> by checking <i>Restrict where this project can be run</i>
+	and then copying your <i>Project Name</i> into the text field.  The label is used to lookup the job details, including 
+	the <i>Builder Type</i> and <i>Builder Size</i> when your slave builders are created.
+	</p>
+
+	<p>
+	The application UUID specifies the OpenShift application that will be cloned to create
+	the environment for your Jenkins job.  For example, if you point to an application which
+	uses <i>jbossas-7</i> as the primary cartridge, your Jenkins job will
+	run in a JBoss AS 7 environment, identical to an application environment.  The same
+	environments variables (i.e. OPENSHIFT_DATA_DIR) will be available and can be used
+	in your build.
+	</p>
+</div>
