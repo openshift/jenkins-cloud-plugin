@@ -34,6 +34,7 @@ import com.openshift.client.IUser;
 import com.openshift.client.OpenShiftException;
 import com.openshift.client.cartridge.IStandaloneCartridge;
 import com.openshift.client.cartridge.StandaloneCartridge;
+import com.openshift.client.cartridge.ICartridge;
 import com.openshift.client.configuration.DefaultConfiguration;
 import com.openshift.client.configuration.SystemConfiguration;
 import com.openshift.client.configuration.UserConfiguration;
@@ -112,6 +113,11 @@ public class OpenShiftSlave extends AbstractCloudSlave {
                     return cartridge;
                   }
                 }
+                //for obsolete cartridges get cartridge by name rather than from list
+                ICartridge cartridge = connection.getCartridge(cartridgeType);
+                if((cartridge != null) && (cartridge instanceof IStandaloneCartridge))
+                	return (IStandaloneCartridge) cartridge;
+                
                 throw new OpenShiftException("Cartridge for " + cartridgeType + " not found");      
             }
         } else {
@@ -123,6 +129,11 @@ public class OpenShiftSlave extends AbstractCloudSlave {
                     return cartridge;
                 }
             }
+            //for obsolete cartridges get cartridge by name rather than from list
+            ICartridge cartridge = connection.getCartridge(targetCartridgeName);
+            if((cartridge != null) && (cartridge instanceof IStandaloneCartridge))
+            	return (IStandaloneCartridge) cartridge;
+            
             throw new OpenShiftException("Cartridge for " + targetCartridgeName + " not found");
         }        
     }
