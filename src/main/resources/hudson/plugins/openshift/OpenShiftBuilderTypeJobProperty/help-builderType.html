@@ -1,5 +1,5 @@
 <div>
-	<p><b>Important:</b> This setting only applies if you set the job <i>Label Expression</i> to match the <i>Project name</i> of your job.</p>
+	<p><b>Important:</b> This setting only applies if you set the job <i>Label Expression</i> to match the <i>Project name</i> of your job and the <i>Application UUID</i> field is blank.</p>
 	<p>
 	Setting the job label is done automatically for you by the OpenShift client tools, but if you are manually setting
 	up a job, you need to set this.  You can set the <i>Label Expression</i> by checking <i>Restrict where this project can be run</i>
@@ -20,4 +20,9 @@
 	environment will not perform any application specific setup and can be used for more
 	general purpose builds.
 	</p>
+	
+	<p>
+	Note: This property has been made obsolete by the <i>Application UUID</i> property which specifies the exact application which should be used to determine the cartridge environment for the build.
+	</p>
+	
 </div>
