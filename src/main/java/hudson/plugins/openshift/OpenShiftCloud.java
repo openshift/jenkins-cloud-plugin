@@ -874,7 +874,7 @@ public final class OpenShiftCloud extends Cloud {
         for (Iterator<IApplication> i = appInfos.iterator(); i.hasNext(); ) {
             IApplication appInfo = i.next();
             String appName = appInfo.getName();
-            if (appName.endsWith(APP_NAME_BUILDER_EXTENSION)) {
+            if (appName.endsWith(APP_NAME_BUILDER_EXTENSION) && !appName.equals(APP_NAME_BUILDER_EXTENSION)) {
                 Node node = Hudson.getInstance().getNode(appName);
                 OpenShiftSlave slave = null;
                 if (node == null || !(node instanceof OpenShiftSlave)) {
