@@ -142,6 +142,9 @@ public class OpenShiftComputerLauncher extends ComputerLauncher {
         StringTokenizer tokenizer = new StringTokenizer(hostname, "-");
         tokenizer.nextToken();
         String currentDns = tokenizer.nextToken();
+        while (tokenizer.hasMoreTokens()) {
+            currentDns = currentDns + "-" + tokenizer.nextToken();
+        }
         String gearDns = System.getenv("OPENSHIFT_GEAR_DNS");
         tokenizer = new StringTokenizer(gearDns, "-");
         currentDns = tokenizer.nextToken() + "-" + currentDns;
