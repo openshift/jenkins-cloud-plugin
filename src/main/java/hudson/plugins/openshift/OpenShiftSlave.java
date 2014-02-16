@@ -1,6 +1,7 @@
 package hudson.plugins.openshift;
 
 import hudson.Extension;
+import hudson.FilePath;
 import hudson.model.Hudson;
 import hudson.model.Job;
 import hudson.model.Node;
@@ -59,7 +60,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     @DataBoundConstructor
     public OpenShiftSlave(String name, String applicationUUID, String builderType, String builderSize,
                           String label, long builderTimeout, int executors, int slaveIdleTimeToLive) throws FormException, IOException {
-        super(name, "Builder for " + label, "app-root/data/jenkins", executors, Mode.NORMAL,
+        super(name, "Builder for " + label, null, executors, Mode.NORMAL,
                 label, new OpenShiftComputerLauncher(),
                 new CloudRetentionStrategy(slaveIdleTimeToLive), Collections
                 .<NodeProperty<?>>emptyList());
@@ -70,6 +71,16 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         this.builderType = builderType;
         this.builderSize = builderSize;
         this.builderTimeout = builderTimeout;
+    }
+
+    @Override
+    public String getRemoteFS() {
+        return "/var/lib/openshift/" + uuid + "/app-root/data/jenkins";
+    }
+
+    @Override
+    public FilePath getRootPath() {
+        return createPath(getRemoteFS());
     }
 
     @SuppressWarnings("unchecked")
