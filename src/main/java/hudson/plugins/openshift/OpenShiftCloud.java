@@ -86,6 +86,9 @@ public final class OpenShiftCloud extends Cloud {
     private static final String SYSPROP_DEFAULT_CONNECT_TIMEOUT = "sun.net.client.defaultConnectTimeout";
     private static final String SYSPROP_DEFAULT_READ_TIMEOUT = "sun.net.client.defaultReadTimeout";
     private static final String SYSPROP_ENABLE_SNI_EXTENSION = "jsse.enableSNIExtension";
+    private static final String SYSPROPERTY_PROXY_PORT = "proxyPort";
+    private static final String SYSPROPERTY_PROXY_HOST = "proxyHost";
+    private static final String SYSPROPERTY_PROXY_SET = "proxySet";
 
     private String username;
     private String password;
@@ -175,9 +178,9 @@ public final class OpenShiftCloud extends Cloud {
                 service.setEnableSSLCertChecks(!ignoreBrokerCertCheck);
 
                 if (proxyHost != null && proxyHost.length() > 0) {
-                    service.setProxySet(true);
-                    service.setProxyHost(proxyHost.trim());
-                    service.setProxyPort(Integer.toString(proxyPort));
+                    System.setProperty(SYSPROPERTY_PROXY_SET, "true");
+                    System.setProperty(SYSPROPERTY_PROXY_HOST, proxyHost.trim());
+                    System.setProperty(SYSPROPERTY_PROXY_PORT, Integer.toString(proxyPort));
                 }
             } catch (OpenShiftException e) {
                 throw new IOException(e);
