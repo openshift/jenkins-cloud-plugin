@@ -103,17 +103,17 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         terminateApp();
     }
 
-    protected IStandaloneCartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {      
-    
+    protected IStandaloneCartridge getCartridge(IOpenShiftConnection connection) throws OpenShiftException {
+
         if(applicationUUID!=null && !applicationUUID.equals("")) {
             // new build configs provide the application uuid for cloning
             IApplication baseApp=getApplicationFromUUID(applicationUUID,connection);
-            if(baseApp==null) {            
+            if(baseApp==null) {
                 throw new OpenShiftException("Could not locate application with UUID "+applicationUUID);
             }
             if(baseApp.getCartridge().getUrl()!=null) {
                 // downloadable cartridge
-                return new StandaloneCartridge(null, baseApp.getCartridge().getUrl());              
+                return new StandaloneCartridge(null, baseApp.getCartridge().getUrl());
             } else {
                 // cartridge from repository
                 String cartridgeType=baseApp.getCartridge().getName();
@@ -123,7 +123,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
                     return cartridge;
                   }
                 }
-                throw new OpenShiftException("Cartridge for " + cartridgeType + " not found");      
+                throw new OpenShiftException("Cartridge for " + cartridgeType + " not found");
             }
         } else {
             // old configs provided the builder type.
@@ -135,10 +135,10 @@ public class OpenShiftSlave extends AbstractCloudSlave {
                 }
             }
             throw new OpenShiftException("Cartridge for " + targetCartridgeName + " not found");
-        }        
+        }
     }
 
-    private IApplication getApplicationFromUUID(String uuid, IOpenShiftConnection connection) {        
+    private IApplication getApplicationFromUUID(String uuid, IOpenShiftConnection connection) {
         for(IDomain domain: connection.getDomains()) {
             for(IApplication app:domain.getApplications()) {
                 if(app.getUUID().equals(applicationUUID)) {
@@ -148,7 +148,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         }
         return null;
     }
-    
+
     private void terminateApp() {
 
         try {
