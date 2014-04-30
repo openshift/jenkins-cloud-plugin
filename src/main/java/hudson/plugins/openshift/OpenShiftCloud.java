@@ -76,6 +76,7 @@ public final class OpenShiftCloud extends Cloud {
     public static final int APP_NAME_MAX_LENGTH = 32;
     public static final String APP_NAME_BUILDER_EXTENSION = "bldr";
     public static final String DEFAULT_LABEL = "raw-build";
+    public static final String DEFAULT_PLATFORM = "Linux";
     public static final long DEFAULT_TIMEOUT = 300000;
     private static final int FAILURE_LIMIT = 5;
     private static final int RETRY_DELAY = 5000;
@@ -348,6 +349,7 @@ public final class OpenShiftCloud extends Cloud {
         String builderType = "diy-0.1";
         String builderName = "raw" + APP_NAME_BUILDER_EXTENSION;
         String builderSize = OpenShiftCloud.get().getDefaultBuilderSize();
+        String builderPlatform = DEFAULT_PLATFORM;
         long builderTimeout = DEFAULT_TIMEOUT;
 
         String labelStr = DEFAULT_LABEL;
@@ -370,6 +372,10 @@ public final class OpenShiftCloud extends Cloud {
                 OpenShiftBuilderTypeJobProperty osbtjp = ((OpenShiftBuilderTypeJobProperty) job
                         .getProperty(OpenShiftBuilderTypeJobProperty.class));
                 builderType = osbtjp.builderType;
+
+                OpenShiftPlatformJobProperty ospjp = ((OpenShiftPlatformJobProperty) job
+                        .getProperty(OpenShiftPlatformJobProperty.class));
+                builderPlatform = ospjp.platform;
 
                 OpenShiftBuilderTimeoutJobProperty timeoutJobProperty = ((OpenShiftBuilderTimeoutJobProperty) job
                         .getProperty(OpenShiftBuilderTimeoutJobProperty.class));
@@ -407,7 +413,7 @@ public final class OpenShiftCloud extends Cloud {
         Exception exception = null;
         while (failures < FAILURE_LIMIT) {
             try {
-                provisionSlave(result, applicationUUID, builderType, builderName, builderSize,
+                provisionSlave(result, applicationUUID, builderType, builderName, builderSize, builderPlatform,
                         label, labelStr, builderTimeout, excessWorkload);
 
                 LOGGER.info("Provisioned " + result.size() + " new nodes");
@@ -443,7 +449,7 @@ public final class OpenShiftCloud extends Cloud {
         return result;
     }
 
-    protected void provisionSlave(List<PlannedNode> result, String appUUID, String builderType, String builderName, String builderSize, Label label, String labelStr, long builderTimeout, int excessWorkload)
+    protected void provisionSlave(List<PlannedNode> result, String appUUID, String builderType, String builderName, String builderSize, String builderPlatform, Label label, String labelStr, long builderTimeout, int excessWorkload)
             throws Exception {
         List<OpenShiftSlave> slaves = getSlaves();
         for (OpenShiftSlave slave : slaves) {
@@ -454,6 +460,7 @@ public final class OpenShiftCloud extends Cloud {
         final String type = builderType;
         final String name = builderName;
         final String size = builderSize;
+        final String platform = builderPlatform;
         final String plannedNodeName = labelStr;
         final long timeout = builderTimeout;
         final int executors = excessWorkload;
@@ -476,7 +483,7 @@ public final class OpenShiftCloud extends Cloud {
 
                 // Provision a new slave builder
                 final OpenShiftSlave newSlave = new OpenShiftSlave(
-                        name, applicationUUID, type, size,
+                        name, applicationUUID, type, size, platform,
                         plannedNodeName, timeout,
                         executors, slaveIdleTimeToLive);
 
@@ -886,7 +893,7 @@ public final class OpenShiftCloud extends Cloud {
                         String framework = appInfo.getCartridge().getName();
 
                         slave = new OpenShiftSlave(appName, appInfo.getUUID(),framework,
-                                OpenShiftCloud.get().getDefaultBuilderSize(),
+                                OpenShiftCloud.get().getDefaultBuilderSize(), DEFAULT_PLATFORM,
                                 DEFAULT_LABEL, DEFAULT_TIMEOUT, 1,
                                 slaveIdleTimeToLive);
                     } catch (Exception e) {

@@ -27,12 +27,16 @@ import java.util.logging.Logger;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.apache.commons.lang.StringEscapeUtils;
 
+import com.openshift.client.ApplicationScale;
 import com.openshift.client.IApplication;
 import com.openshift.client.IDomain;
+import com.openshift.client.IGear;
+import com.openshift.client.IGearGroup;
 import com.openshift.client.IGearProfile;
 import com.openshift.client.IOpenShiftConnection;
 import com.openshift.client.IUser;
 import com.openshift.client.OpenShiftException;
+import com.openshift.client.cartridge.ICartridge;
 import com.openshift.client.cartridge.IStandaloneCartridge;
 import com.openshift.client.cartridge.StandaloneCartridge;
 import com.openshift.client.configuration.DefaultConfiguration;
@@ -47,6 +51,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     private String applicationUUID;
     private String builderType;
     private final String builderSize;
+    private final String builderPlatform;
     private final long builderTimeout;
     private String uuid;
 
@@ -58,18 +63,20 @@ public class OpenShiftSlave extends AbstractCloudSlave {
      * jbossas-7)
      */
     @DataBoundConstructor
-    public OpenShiftSlave(String name, String applicationUUID, String builderType, String builderSize,
+    public OpenShiftSlave(String name, String applicationUUID, String builderType, String builderSize, String builderPlatform,
                           String label, long builderTimeout, int executors, int slaveIdleTimeToLive) throws FormException, IOException {
         super(name, "Builder for " + label, null, executors, Mode.NORMAL,
                 label, new OpenShiftComputerLauncher(),
                 new CloudRetentionStrategy(slaveIdleTimeToLive), Collections
-                .<NodeProperty<?>>emptyList());
+                        .<NodeProperty<?>>emptyList()
+        );
 
         LOGGER.info("Creating slave with " + slaveIdleTimeToLive + "mins time-to-live");
 
         this.applicationUUID = applicationUUID;
         this.builderType = builderType;
         this.builderSize = builderSize;
+        this.builderPlatform = builderPlatform;
         this.builderTimeout = builderTimeout;
     }
 
@@ -178,10 +185,33 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         try {
             IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
             IApplication app = user.getDefaultDomain().getApplicationByName(name);
-            String url = app.getApplicationUrl();
 
-            if (url.indexOf("//") != -1)
-                url = url.substring(url.indexOf("//") + 2);
+            String url = null;
+
+            String type = getCartridge(OpenShiftCloud.get().getOpenShiftConnection()).getName();
+
+            for (IGearGroup gearGroup : app.getGearGroups()) {
+                for(ICartridge cart : gearGroup.getCartridges())
+                {
+                    if(cart.getName().equals(type))
+                    {
+                        url = ((IGear) gearGroup.getGears().toArray()[0]).getSshUrl();
+                        break;
+                    }
+                }
+                if(url != null)
+                {
+                    break;
+                }
+            }
+
+            if(url == null)
+            {
+                throw new IOException("Unable to find ssh url for " + name);
+            }
+
+            if (url.indexOf("@") != -1)
+                url = url.substring(url.indexOf("@") + 1);
 
             url = url.replace("/", "");
 
@@ -283,7 +313,11 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
       LOGGER.info("Creating builder application " + cartridge.getName() + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
 
-      IApplication app = domain.createApplication(name, cartridge, gearProfile);
+      ApplicationScale scale = ApplicationScale.NO_SCALE;
+      if(builderPlatform.equalsIgnoreCase(Platform.WINDOWS.toString())) {
+          scale = ApplicationScale.SCALE;
+      }
+      IApplication app = domain.createApplication(name, cartridge, scale, gearProfile);
 
       // No reason to have app running on builder gear - just need it installed
       LOGGER.info("Stopping application on builder gear ...");
@@ -292,5 +326,20 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
     public String getUuid() {
         return uuid;
+    }
+
+    public enum Platform {
+        WINDOWS("Windows"),
+        LINUX("Linux");
+
+        private final String platform;
+
+        private Platform(String s) {
+            platform = s;
+        }
+
+        public String toString(){
+            return platform;
+        }
     }
 }
