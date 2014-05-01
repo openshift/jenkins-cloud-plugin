@@ -1,47 +1,28 @@
 package hudson.plugins.openshift;
 
+import com.openshift.client.*;
+import com.openshift.client.cartridge.ICartridge;
+import com.openshift.client.cartridge.IStandaloneCartridge;
+import com.openshift.client.cartridge.StandaloneCartridge;
 import hudson.Extension;
 import hudson.FilePath;
+import hudson.model.Descriptor.FormException;
 import hudson.model.Hudson;
-import hudson.model.Job;
-import hudson.model.Node;
 import hudson.model.Queue;
 import hudson.model.TaskListener;
-import hudson.model.Descriptor.FormException;
 import hudson.slaves.AbstractCloudComputer;
 import hudson.slaves.AbstractCloudSlave;
 import hudson.slaves.CloudRetentionStrategy;
 import hudson.slaves.NodeProperty;
+import org.kohsuke.stapler.DataBoundConstructor;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import org.kohsuke.stapler.DataBoundConstructor;
-import org.apache.commons.lang.StringEscapeUtils;
-
-import com.openshift.client.ApplicationScale;
-import com.openshift.client.IApplication;
-import com.openshift.client.IDomain;
-import com.openshift.client.IGear;
-import com.openshift.client.IGearGroup;
-import com.openshift.client.IGearProfile;
-import com.openshift.client.IOpenShiftConnection;
-import com.openshift.client.IUser;
-import com.openshift.client.OpenShiftException;
-import com.openshift.client.cartridge.ICartridge;
-import com.openshift.client.cartridge.IStandaloneCartridge;
-import com.openshift.client.cartridge.StandaloneCartridge;
-import com.openshift.client.configuration.DefaultConfiguration;
-import com.openshift.client.configuration.SystemConfiguration;
-import com.openshift.client.configuration.UserConfiguration;
 
 public class OpenShiftSlave extends AbstractCloudSlave {
     private static final long serialVersionUID = 8486485671018263774L;
@@ -80,6 +61,10 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         this.builderTimeout = builderTimeout;
     }
 
+    private String getNamespace() {
+        return System.getenv("OPENSHIFT_NAMESPACE");
+    }
+
     @Override
     public String getRemoteFS() {
         return "/var/lib/openshift/" + uuid + "/app-root/data/jenkins";
@@ -114,7 +99,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
         if(applicationUUID!=null && !applicationUUID.equals("")) {
             // new build configs provide the application uuid for cloning
-            IApplication baseApp=getApplicationFromUUID(applicationUUID,connection);
+            IApplication baseApp = Util.getApplicationFromUuid(applicationUUID);
             if(baseApp==null) {
                 throw new OpenShiftException("Could not locate application with UUID "+applicationUUID);
             }
@@ -145,27 +130,11 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         }
     }
 
-    private IApplication getApplicationFromUUID(String uuid, IOpenShiftConnection connection) {
-        for(IDomain domain: connection.getDomains()) {
-            for(IApplication app:domain.getApplications()) {
-                if(app.getUUID().equals(applicationUUID)) {
-                    return app;
-                }
-            }
-        }
-        return null;
-    }
-
     private void terminateApp() {
-
         try {
-            IOpenShiftConnection connection = OpenShiftCloud.get().getOpenShiftConnection();
-            IUser user = connection.getUser();
-
-            user.getDefaultDomain().getApplicationByName(name).destroy();
+            getBuilderApplication().destroy();
         } catch (Exception e) {
-            LOGGER.warning("Unable to terminate application");
-            e.printStackTrace();
+            LOGGER.log(Level.WARNING, "Unable to terminate builder application", e);
         }
     }
 
@@ -183,30 +152,23 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
     public String getHostName() throws IOException {
         try {
-            IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
-            IApplication app = user.getDefaultDomain().getApplicationByName(name);
+            IApplication app = getBuilderApplication();
 
             String url = null;
 
             String type = getCartridge(OpenShiftCloud.get().getOpenShiftConnection()).getName();
 
             for (IGearGroup gearGroup : app.getGearGroups()) {
-                for(ICartridge cart : gearGroup.getCartridges())
-                {
-                    if(cart.getName().equals(type))
-                    {
+                for(ICartridge cart : gearGroup.getCartridges()) {
+                    if(cart.getName().equals(type)) {
                         url = ((IGear) gearGroup.getGears().toArray()[0]).getSshUrl();
                         break;
                     }
                 }
-                if(url != null)
-                {
-                    break;
-                }
+                if(url != null) break;
             }
 
-            if(url == null)
-            {
+            if(url == null) {
                 throw new IOException("Unable to find ssh url for " + name);
             }
 
@@ -216,7 +178,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
             url = url.replace("/", "");
 
             return url;
-        } catch (OpenShiftException e) {
+        } catch (Exception e) {
             throw new IOException("Unable to find application url for " + name, e);
         }
     }
@@ -226,8 +188,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
         try {
             // Force a refresh of the user info to get the application UUID
-            IUser user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
-            IApplication app = user.getDefaultDomain().getApplicationByName(name);
+            IApplication app = getBuilderApplication();
 
             if (app == null)
                 throw new IOException("Failed to connect/find application " + name);
@@ -235,7 +196,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
             uuid = app.getGearGroups().iterator().next().getGears().iterator().next().getId();
 
             LOGGER.info("Established UUID = " + uuid);
-        } catch (OpenShiftException e) {
+        } catch (Exception e) {
             throw new IOException("Unable to connect to application " + name, e);
         }
 
@@ -285,11 +246,9 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         }
 
         return running;
-
     }
 
     public void provision() throws Exception {
-
         // Create a new application of the right type
         createApp();
 
@@ -302,7 +261,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
       IUser user = connection.getUser();
       IStandaloneCartridge cartridge = getCartridge(OpenShiftCloud.get().getOpenShiftConnection());
 
-      IDomain domain = user.getDefaultDomain();
+      IDomain domain = user.getDomain(getNamespace());
       List<IGearProfile> gearProfiles = domain.getAvailableGearProfiles();
       IGearProfile gearProfile = gearProfiles.get(0);
       for (IGearProfile profile : gearProfiles) {
@@ -311,7 +270,9 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         }
       }
 
-      LOGGER.info("Creating builder application " + cartridge.getName() + " " + name + " " + user.getDefaultDomain().getId() + " of size " + gearProfile.getName() + " ...");
+      LOGGER.info("Creating builder application " + cartridge.getName() + " "
+              + name + " " + user.getDomain(getNamespace()).getId() + " of size "
+              + gearProfile.getName() + " ...");
 
       ApplicationScale scale = ApplicationScale.NO_SCALE;
       if(builderPlatform.equalsIgnoreCase(Platform.WINDOWS.toString())) {
@@ -322,6 +283,17 @@ public class OpenShiftSlave extends AbstractCloudSlave {
       // No reason to have app running on builder gear - just need it installed
       LOGGER.info("Stopping application on builder gear ...");
       app.stop();
+    }
+
+    private IApplication getBuilderApplication() {
+        IUser user;
+        try {
+            user = OpenShiftCloud.get().getOpenShiftConnection().getUser();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return user.getDomain(getNamespace()).getApplicationByName(name);
     }
 
     public String getUuid() {
