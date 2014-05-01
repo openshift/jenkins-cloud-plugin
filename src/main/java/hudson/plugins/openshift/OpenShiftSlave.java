@@ -120,7 +120,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
             }
             if(baseApp.getCartridge().getUrl()!=null) {
                 // downloadable cartridge
-                return new StandaloneCartridge(null, baseApp.getCartridge().getUrl());
+                return new StandaloneCartridge(baseApp.getCartridge().getName(), baseApp.getCartridge().getUrl());
             } else {
                 // cartridge from repository
                 String cartridgeType=baseApp.getCartridge().getName();

@@ -375,7 +375,9 @@ public final class OpenShiftCloud extends Cloud {
 
                 OpenShiftPlatformJobProperty ospjp = ((OpenShiftPlatformJobProperty) job
                         .getProperty(OpenShiftPlatformJobProperty.class));
-                builderPlatform = ospjp.platform;
+                if(ospjp!=null) {
+                    builderPlatform = ospjp.platform;
+                }
 
                 OpenShiftBuilderTimeoutJobProperty timeoutJobProperty = ((OpenShiftBuilderTimeoutJobProperty) job
                         .getProperty(OpenShiftBuilderTimeoutJobProperty.class));
