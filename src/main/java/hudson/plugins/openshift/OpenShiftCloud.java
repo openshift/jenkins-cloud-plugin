@@ -31,11 +31,8 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.logging.Level;
@@ -60,7 +57,6 @@ import org.kohsuke.stapler.StaplerRequest;
 import com.openshift.client.IApplication;
 import com.openshift.client.IOpenShiftConnection;
 import com.openshift.client.IUser;
-import com.openshift.client.InvalidCredentialsOpenShiftException;
 import com.openshift.client.OpenShiftConnectionFactory;
 import com.openshift.client.OpenShiftException;
 import com.openshift.client.configuration.DefaultConfiguration;
@@ -76,6 +72,7 @@ public final class OpenShiftCloud extends Cloud {
     public static final int APP_NAME_MAX_LENGTH = 32;
     public static final String APP_NAME_BUILDER_EXTENSION = "bldr";
     public static final String DEFAULT_LABEL = "raw-build";
+    public static final String DEFAULT_PLATFORM = "Linux";
     public static final long DEFAULT_TIMEOUT = 300000;
     private static final int FAILURE_LIMIT = 5;
     private static final int RETRY_DELAY = 5000;
@@ -86,6 +83,9 @@ public final class OpenShiftCloud extends Cloud {
     private static final String SYSPROP_DEFAULT_CONNECT_TIMEOUT = "sun.net.client.defaultConnectTimeout";
     private static final String SYSPROP_DEFAULT_READ_TIMEOUT = "sun.net.client.defaultReadTimeout";
     private static final String SYSPROP_ENABLE_SNI_EXTENSION = "jsse.enableSNIExtension";
+    private static final String SYSPROPERTY_PROXY_PORT = "proxyPort";
+    private static final String SYSPROPERTY_PROXY_HOST = "proxyHost";
+    private static final String SYSPROPERTY_PROXY_SET = "proxySet";
 
     private String username;
     private String password;
@@ -137,7 +137,10 @@ public final class OpenShiftCloud extends Cloud {
                 slaveIdleTimeToLive, maxSlaveIdleTimeToLive);
         this.defaultBuilderSize = defaultBuilderSize;
         this.ignoreBrokerCertCheck = ignoreBrokerCertCheck;
+    }
 
+    private String getNamespace() {
+        return System.getenv("OPENSHIFT_NAMESPACE");
     }
 
     public IOpenShiftConnection getOpenShiftConnection() throws IOException {
@@ -175,9 +178,9 @@ public final class OpenShiftCloud extends Cloud {
                 service.setEnableSSLCertChecks(!ignoreBrokerCertCheck);
 
                 if (proxyHost != null && proxyHost.length() > 0) {
-                    service.setProxySet(true);
-                    service.setProxyHost(proxyHost.trim());
-                    service.setProxyPort(Integer.toString(proxyPort));
+                    System.setProperty(SYSPROPERTY_PROXY_SET, "true");
+                    System.setProperty(SYSPROPERTY_PROXY_HOST, proxyHost.trim());
+                    System.setProperty(SYSPROPERTY_PROXY_PORT, Integer.toString(proxyPort));
                 }
             } catch (OpenShiftException e) {
                 throw new IOException(e);
@@ -311,12 +314,8 @@ public final class OpenShiftCloud extends Cloud {
 
     protected boolean builderExists(String name, IUser userInfo)
             throws IOException, OpenShiftException {
-        List<IApplication> applications = userInfo.getDefaultDomain()
-                .getApplications();
         LOGGER.info("Capacity remaining - checking for existing type...");
-        for (@SuppressWarnings("unchecked")
-             Iterator<IApplication> i = applications.iterator(); i.hasNext(); ) {
-            IApplication app = i.next();
+        for (IApplication app : userInfo.getDomain(getNamespace()).getApplications()) {
             if (app.getName().equals(name)) {
                 LOGGER.info("Found an existing builder.  Not provisioning...");
                 return true;
@@ -336,7 +335,7 @@ public final class OpenShiftCloud extends Cloud {
         service = null;
 
         LOGGER.info("Provisioning new node for workload = " + excessWorkload
-                + " and label = " + label);
+                + " and label = " + label + " in domain " + getNamespace());
 
         if (slaveIdleTimeToLive == 0)
             slaveIdleTimeToLive = 15;
@@ -345,6 +344,7 @@ public final class OpenShiftCloud extends Cloud {
         String builderType = "diy-0.1";
         String builderName = "raw" + APP_NAME_BUILDER_EXTENSION;
         String builderSize = OpenShiftCloud.get().getDefaultBuilderSize();
+        String builderPlatform = DEFAULT_PLATFORM;
         long builderTimeout = DEFAULT_TIMEOUT;
 
         String labelStr = DEFAULT_LABEL;
@@ -367,6 +367,12 @@ public final class OpenShiftCloud extends Cloud {
                 OpenShiftBuilderTypeJobProperty osbtjp = ((OpenShiftBuilderTypeJobProperty) job
                         .getProperty(OpenShiftBuilderTypeJobProperty.class));
                 builderType = osbtjp.builderType;
+
+                OpenShiftPlatformJobProperty ospjp = ((OpenShiftPlatformJobProperty) job
+                        .getProperty(OpenShiftPlatformJobProperty.class));
+                if(ospjp!=null) {
+                    builderPlatform = ospjp.platform;
+                }
 
                 OpenShiftBuilderTimeoutJobProperty timeoutJobProperty = ((OpenShiftBuilderTimeoutJobProperty) job
                         .getProperty(OpenShiftBuilderTimeoutJobProperty.class));
@@ -404,7 +410,7 @@ public final class OpenShiftCloud extends Cloud {
         Exception exception = null;
         while (failures < FAILURE_LIMIT) {
             try {
-                provisionSlave(result, applicationUUID, builderType, builderName, builderSize,
+                provisionSlave(result, applicationUUID, builderType, builderName, builderSize, builderPlatform,
                         label, labelStr, builderTimeout, excessWorkload);
 
                 LOGGER.info("Provisioned " + result.size() + " new nodes");
@@ -440,7 +446,7 @@ public final class OpenShiftCloud extends Cloud {
         return result;
     }
 
-    protected void provisionSlave(List<PlannedNode> result, String appUUID, String builderType, String builderName, String builderSize, Label label, String labelStr, long builderTimeout, int excessWorkload)
+    protected void provisionSlave(List<PlannedNode> result, String appUUID, String builderType, String builderName, String builderSize, String builderPlatform, Label label, String labelStr, long builderTimeout, int excessWorkload)
             throws Exception {
         List<OpenShiftSlave> slaves = getSlaves();
         for (OpenShiftSlave slave : slaves) {
@@ -451,46 +457,46 @@ public final class OpenShiftCloud extends Cloud {
         final String type = builderType;
         final String name = builderName;
         final String size = builderSize;
+        final String platform = builderPlatform;
         final String plannedNodeName = labelStr;
         final long timeout = builderTimeout;
         final int executors = excessWorkload;
 
-        if (excessWorkload > 0) {
-            OpenShiftSlave slave = getSlave(slaves, builderName);
+        if (excessWorkload <= 0) return;
 
-            IUser user = this.getOpenShiftConnection().getUser();
+        OpenShiftSlave slave = getSlave(slaves, builderName);
 
-            if (slave != null && builderExists(builderName, user)) {
-                LOGGER.info("Slave exists. Not provisioning");
-                //slave.terminate();
-                return;
-            }
+        IUser user = this.getOpenShiftConnection().getUser();
 
-            if (!hasCapacity(name, user)) {
-                LOGGER.info("Not provisioning new builder...");
-            } else {
-                reloadConfig(label);
-
-                // Provision a new slave builder
-                final OpenShiftSlave newSlave = new OpenShiftSlave(
-                        name, applicationUUID, type, size,
-                        plannedNodeName, timeout,
-                        executors, slaveIdleTimeToLive);
-
-                newSlave.provision();
-
-                Future<Node> future = Computer.threadPoolForRemoting.submit(new Callable<Node>() {
-                    public Node call() throws Exception {
-                        Hudson.getInstance().addNode(newSlave);
-                        return newSlave;
-                    }
-                });
-
-                PlannedNode node = new PlannedNode(plannedNodeName, future, executors);
-                result.add(node);
-
-            }
+        if (slave != null && builderExists(builderName, user)) {
+            LOGGER.info("Slave exists. Not provisioning");
+            return;
         }
+
+        if (!hasCapacity(name, user)) {
+            LOGGER.info("Not provisioning new builder due to lack of capacity");
+            return;
+        }
+
+        reloadConfig(label);
+
+        // Provision a new slave builder
+        final OpenShiftSlave newSlave = new OpenShiftSlave(
+                name, applicationUUID, type, size, platform,
+                plannedNodeName, timeout,
+                executors, slaveIdleTimeToLive);
+
+        newSlave.provision();
+
+        Future<Node> future = Computer.threadPoolForRemoting.submit(new Callable<Node>() {
+            public Node call() throws Exception {
+                Hudson.getInstance().addNode(newSlave);
+                return newSlave;
+            }
+        });
+
+        PlannedNode node = new PlannedNode(plannedNodeName, future, executors);
+        result.add(node);
     }
 
     protected void reloadConfig(Label label) throws IOException,
@@ -866,13 +872,10 @@ public final class OpenShiftCloud extends Cloud {
     protected List<OpenShiftSlave> getSlaves() throws IOException,
             OpenShiftException {
 
-        List<IApplication> appInfos = this.getOpenShiftConnection().getUser()
-                .getDefaultDomain().getApplications();
-
         List<OpenShiftSlave> slaveList = new ArrayList<OpenShiftSlave>();
 
-        for (Iterator<IApplication> i = appInfos.iterator(); i.hasNext(); ) {
-            IApplication appInfo = i.next();
+        for (IApplication appInfo : this.getOpenShiftConnection().getUser()
+                .getDomain(getNamespace()).getApplications()) {
             String appName = appInfo.getName();
             if (appName.endsWith(APP_NAME_BUILDER_EXTENSION) && !appName.equals(APP_NAME_BUILDER_EXTENSION)) {
                 Node node = Hudson.getInstance().getNode(appName);
@@ -883,7 +886,7 @@ public final class OpenShiftCloud extends Cloud {
                         String framework = appInfo.getCartridge().getName();
 
                         slave = new OpenShiftSlave(appName, appInfo.getUUID(),framework,
-                                OpenShiftCloud.get().getDefaultBuilderSize(),
+                                OpenShiftCloud.get().getDefaultBuilderSize(), DEFAULT_PLATFORM,
                                 DEFAULT_LABEL, DEFAULT_TIMEOUT, 1,
                                 slaveIdleTimeToLive);
                     } catch (Exception e) {
