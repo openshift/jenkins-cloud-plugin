@@ -1,4 +1,5 @@
 target
 work
 .idea
+.settings
 openshift.iml
