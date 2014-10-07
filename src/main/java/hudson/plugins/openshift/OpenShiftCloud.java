@@ -282,7 +282,7 @@ public final class OpenShiftCloud extends Cloud {
 	}
 
 	public boolean canProvision(Label label) {
-		return true;
+		return label!=null;
 	}
 
 	/**
