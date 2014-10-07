@@ -66,6 +66,7 @@ import com.openshift.client.OpenShiftException;
 import com.openshift.client.configuration.DefaultConfiguration;
 import com.openshift.client.configuration.SystemConfiguration;
 import com.openshift.client.configuration.UserConfiguration;
+import com.openshift.client.NoopSSLCertificateCallback;
 
 /**
  * Represents the available cloud of OpenShift instances for building.
@@ -170,9 +171,8 @@ public final class OpenShiftCloud extends Cloud {
                 }
 
                 service = new OpenShiftConnectionFactory().getConnection(
-                        username, username, password, authKey, authIV, url);
+                        username, username, password, authKey, authIV, url, new NoopSSLCertificateCallback());
 
-                service.setEnableSSLCertChecks(!ignoreBrokerCertCheck);
 
                 if (proxyHost != null && proxyHost.length() > 0) {
                     service.setProxySet(true);
@@ -282,7 +282,7 @@ public final class OpenShiftCloud extends Cloud {
     }
 
     public boolean canProvision(Label label) {
-        return true;
+        return label!=null;
     }
 
     /**
