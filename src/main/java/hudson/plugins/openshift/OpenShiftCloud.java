@@ -174,7 +174,7 @@ public final class OpenShiftCloud extends Cloud {
                 }
 
                 service = new OpenShiftConnectionFactory().getConnection(
-                        username, username, password, authKey, authIV, url, new NoopSSLCertificateCallback());
+                        username, username, password, authKey, authIV, null, url, new NoopSSLCertificateCallback());
 
 
                 if (proxyHost != null && proxyHost.length() > 0) {
@@ -344,6 +344,7 @@ public final class OpenShiftCloud extends Cloud {
         String builderType = "diy-0.1";
         String builderName = "raw" + APP_NAME_BUILDER_EXTENSION;
         String builderSize = OpenShiftCloud.get().getDefaultBuilderSize();
+        String region = null;
         String builderPlatform = DEFAULT_PLATFORM;
         long builderTimeout = DEFAULT_TIMEOUT;
 
@@ -359,6 +360,10 @@ public final class OpenShiftCloud extends Cloud {
                 OpenShiftBuilderSizeJobProperty osbsjp = ((OpenShiftBuilderSizeJobProperty) job
                         .getProperty(OpenShiftBuilderSizeJobProperty.class));
                 builderSize = osbsjp.builderSize;
+
+                OpenShiftRegionJobProperty osrjp = ((OpenShiftRegionJobProperty) job
+                        .getProperty(OpenShiftRegionJobProperty.class));
+                region = osrjp==null?null:osrjp.region;
 
                 OpenShiftApplicationUUIDJobProperty osappuidjp = ((OpenShiftApplicationUUIDJobProperty) job
                         .getProperty(OpenShiftApplicationUUIDJobProperty.class));
@@ -410,7 +415,7 @@ public final class OpenShiftCloud extends Cloud {
         Exception exception = null;
         while (failures < FAILURE_LIMIT) {
             try {
-                provisionSlave(result, applicationUUID, builderType, builderName, builderSize, builderPlatform,
+                provisionSlave(result, applicationUUID, builderType, builderName, builderSize, region, builderPlatform,
                         label, labelStr, builderTimeout, excessWorkload);
 
                 LOGGER.info("Provisioned " + result.size() + " new nodes");
@@ -446,7 +451,7 @@ public final class OpenShiftCloud extends Cloud {
         return result;
     }
 
-    protected void provisionSlave(List<PlannedNode> result, String appUUID, String builderType, String builderName, String builderSize, String builderPlatform, Label label, String labelStr, long builderTimeout, int excessWorkload)
+    protected void provisionSlave(List<PlannedNode> result, String appUUID, String builderType, String builderName, String builderSize, String region, String builderPlatform, Label label, String labelStr, long builderTimeout, int excessWorkload)
             throws Exception {
         List<OpenShiftSlave> slaves = getSlaves();
         for (OpenShiftSlave slave : slaves) {
@@ -482,7 +487,7 @@ public final class OpenShiftCloud extends Cloud {
 
         // Provision a new slave builder
         final OpenShiftSlave newSlave = new OpenShiftSlave(
-                name, applicationUUID, type, size, platform,
+                name, applicationUUID, type, size, region, platform,
                 plannedNodeName, timeout,
                 executors, slaveIdleTimeToLive);
 
@@ -886,7 +891,7 @@ public final class OpenShiftCloud extends Cloud {
                         String framework = appInfo.getCartridge().getName();
 
                         slave = new OpenShiftSlave(appName, appInfo.getUUID(),framework,
-                                OpenShiftCloud.get().getDefaultBuilderSize(), DEFAULT_PLATFORM,
+                                OpenShiftCloud.get().getDefaultBuilderSize(), null, DEFAULT_PLATFORM,
                                 DEFAULT_LABEL, DEFAULT_TIMEOUT, 1,
                                 slaveIdleTimeToLive);
                     } catch (Exception e) {

@@ -32,6 +32,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
     private String applicationUUID;
     private String builderType;
     private final String builderSize;
+    private final String region;
     private final String builderPlatform;
     private final long builderTimeout;
     private String uuid;
@@ -44,7 +45,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
      * jbossas-7)
      */
     @DataBoundConstructor
-    public OpenShiftSlave(String name, String applicationUUID, String builderType, String builderSize, String builderPlatform,
+    public OpenShiftSlave(String name, String applicationUUID, String builderType, String builderSize, String region, String builderPlatform,
                           String label, long builderTimeout, int executors, int slaveIdleTimeToLive) throws FormException, IOException {
         super(name, "Builder for " + label, null, executors, Mode.NORMAL,
                 label, new OpenShiftComputerLauncher(),
@@ -57,6 +58,7 @@ public class OpenShiftSlave extends AbstractCloudSlave {
         this.applicationUUID = applicationUUID;
         this.builderType = builderType;
         this.builderSize = builderSize;
+        this.region = region;
         this.builderPlatform = builderPlatform;
         this.builderTimeout = builderTimeout;
     }
@@ -272,13 +274,14 @@ public class OpenShiftSlave extends AbstractCloudSlave {
 
       LOGGER.info("Creating builder application " + cartridge.getName() + " "
               + name + " " + user.getDomain(getNamespace()).getId() + " of size "
-              + gearProfile.getName() + " ...");
+              + gearProfile.getName() + " in region "+(region==null?"default":region)+" ...");
 
       ApplicationScale scale = ApplicationScale.NO_SCALE;
       if(builderPlatform.equalsIgnoreCase(Platform.WINDOWS.toString())) {
           scale = ApplicationScale.SCALE;
       }
-      IApplication app = domain.createApplication(name, cartridge, scale, gearProfile);
+      IApplication app = domain.createApplication(name, cartridge, scale, region, gearProfile);
+      //IApplication app = domain.createApplication(name, cartridge, scale, gearProfile);
 
       // No reason to have app running on builder gear - just need it installed
       LOGGER.info("Stopping application on builder gear ...");
