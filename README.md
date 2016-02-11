@@ -2,7 +2,7 @@ OpenShift Origin - jenkins-cloud-plugin
 =============
 
 OpenShift Jenkins Cloud Plugin provides custom integration between a [Jenkins CI
-server](jenkins-ci.org) and the OpenShift build and deploy services.
+server](http://jenkins-ci.org) and the OpenShift build and deploy services.
 
 Contributing
 ----------------------
